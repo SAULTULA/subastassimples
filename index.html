@@ -1,0 +1,68 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>Subasta en vivo</title>
+<link rel="stylesheet" href="style.css"></head><body><main>
+<h1>🔨 Subasta en vivo</h1>
+<div id="banner"></div>
+<div id="reg" class="card" style="display:none"><b>Anotate para pujar</b>
+<input id="nm" placeholder="Nombre"><input id="ph" placeholder="Celular (ej: 1155551234)" inputmode="tel">
+<button onclick="register()" style="width:100%;margin-top:6px">Entrar a la subasta</button></div>
+<div id="live"></div>
+<div id="bidbox" class="card" style="display:none">
+<button id="quick" style="width:100%" onclick="bid()"></button>
+<div class="row" style="margin-top:8px"><input id="amt" type="number" inputmode="numeric" placeholder="Otro monto"><button class="s" onclick="bid(+$('amt').value)">Pujar</button></div>
+<div id="msg" class="mut"></div></div>
+<div id="next"></div>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<script>
+let me=JSON.parse(localStorage.getItem('me')||'null'),live,next,last,bids=[];
+async function register(){
+  const n=$('nm').value.trim(),p=$('ph').value.replace(/\D/g,'');
+  if(!n||p.length<8)return alert('Poné nombre y celular válido');
+  const {data,error}=await SB.rpc('register',{p_name:n,p_phone:p});
+  if(error)return alert(error.message);
+  me={id:data,name:n};localStorage.setItem('me',JSON.stringify(me));draw();
+}
+const minBid=()=>!live?0:(bids.length?Number(live.current_price)+Number(live.increment):Number(live.start_price));
+async function bid(v){
+  v=v||minBid();
+  const {data,error}=await SB.rpc('place_bid',{p_lot:live.id,p_participant:me.id,p_amount:v});
+  $('msg').textContent=error?error.message:data==='ok'?'✅ Ofertaste '+money(v):data.startsWith('low')?'Tu oferta es baja, mínimo '+money(data.split(':')[1]):data==='closed'?'El lote ya cerró':'Registrate de nuevo';
+  $('amt').value='';load();
+}
+async function load(){
+  const [a,b,c]=await Promise.all([
+    SB.from('lots').select('*').eq('status','live').limit(1),
+    SB.from('lots').select('*').eq('status','pending').order('position').limit(1),
+    SB.from('lots').select('*').eq('status','closed').order('closed_at',{ascending:false}).limit(1)]);
+  live=a.data?.[0];next=b.data?.[0];last=c.data?.[0];bids=[];
+  if(live){const r=await SB.from('bids').select('name,amount').eq('lot_id',live.id).order('amount',{ascending:false}).limit(6);bids=r.data||[];}
+  draw();
+}
+function draw(){
+  $('reg').style.display=me?'none':'block';
+  $('bidbox').style.display=me&&live?'block':'none';
+  let bn='';
+  if(last&&me&&last.winner_id===me.id)
+    bn=`<div class="card win"><b>🏆 ¡Ganaste "${esc(last.title)}" por ${money(last.current_price)}!</b><p>Escribile a la organizadora para coordinar la entrega:</p>
+    <p><a href="https://wa.me/${ADMIN_WA}" target="_blank"><b>1166508379</b></a> (WhatsApp)</p></div>`;
+  else if(last&&!live)
+    bn=`<div class="card"><span class="mut">Último lote cerrado</span><br><b>${esc(last.title)}</b> — ganó <b>${esc(last.winner_name||'sin ofertas')}</b> ${last.winner_name?'por '+money(last.current_price):''}</div>`;
+  $('banner').innerHTML=bn;
+  $('live').innerHTML=live?`<div class="card"><span class="tag live">● EN VIVO</span>
+    ${live.image_url?`<img src="${esc(live.image_url)}" style="margin-top:10px">`:''}
+    <h2 style="margin:8px 0 4px">${esc(live.title)}</h2><div class="mut">${esc(live.description)}</div>
+    <div class="mut" style="margin-top:8px">${bids.length?'Oferta actual':'Precio base'}</div><div class="price">${money(live.current_price)}</div>
+    ${live.leader_name?`<div class="hot">🔥 ${esc(live.leader_name)} se está llevando este lote${me&&live.leader_id===me.id?' (¡vos!)':''}</div>`:'<div class="mut">Todavía sin ofertas</div>'}
+    <div class="bids">${bids.map(x=>`<div><span>${esc(x.name)}</span><b>${money(x.amount)}</b></div>`).join('')}</div></div>`
+    :`<div class="card" style="text-align:center"><b>Esperando que se lance el próximo lote…</b></div>`;
+  if(live)$('quick').textContent='Pujar '+money(minBid());
+  $('next').innerHTML=next?`<div class="card"><span class="mut">Próximo lote</span><div class="row" style="flex-wrap:nowrap;margin-top:6px">
+    ${next.image_url?`<img src="${esc(next.image_url)}" style="width:80px;height:80px;object-fit:cover;border-radius:8px;flex:none;margin:0">`:''}
+    <div><b>${esc(next.title)}</b><div class="mut">Base ${money(next.start_price)}</div></div></div></div>`:'';
+}
+SB.channel('pub').on('postgres_changes',{event:'*',schema:'public',table:'lots'},load)
+ .on('postgres_changes',{event:'*',schema:'public',table:'bids'},load).subscribe();
+setInterval(load,8000);load();
+</script></body></html>
