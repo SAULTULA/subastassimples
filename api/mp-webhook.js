@@ -7,7 +7,14 @@ function firmaValida(req, dataId) {
   const secret = process.env.MP_WEBHOOK_SECRET;
   const xSignature = req.headers['x-signature'];
   const xRequestId = req.headers['x-request-id'];
-  if (!secret || !xSignature) return false;
+  // Mercado Pago entrega la clave secreta recién DESPUÉS de guardar (y obliga a simular antes).
+  // Mientras no esté cargada en Vercel se acepta sin firma. Esto es seguro porque el pago siempre
+  // se vuelve a consultar a la API de Mercado Pago; apenas cargues la clave, la firma se exige.
+  if (!secret) {
+    console.warn('MP_WEBHOOK_SECRET no configurada: notificación aceptada sin validar firma');
+    return true;
+  }
+  if (!xSignature) return false;
 
   let ts, v1;
   xSignature.split(',').forEach((part) => {
