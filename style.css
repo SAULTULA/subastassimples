@@ -256,3 +256,21 @@ a:hover { color: #ffe4a1; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
 }
+
+/* Pago y contacto */
+.btn-wa {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 50px;
+  margin-top: 8px;
+  padding: 12px 17px;
+  color: #06251a;
+  background: linear-gradient(135deg, #65e8b5, #36c995);
+  border: 1px solid rgba(101, 232, 181, .4);
+  border-radius: 12px;
+  font-weight: 800;
+  text-decoration: none;
+}
+.btn-wa:hover { color: #06251a; filter: brightness(1.06); }
+#cd { color: var(--acc-strong); font-variant-numeric: tabular-nums; }

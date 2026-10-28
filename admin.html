@@ -9,6 +9,7 @@
 <div class="card"><b id="ftitle">Nuevo lote</b>
 <input id="t" placeholder="Título"><textarea id="d" rows="2" placeholder="Descripción"></textarea>
 <div class="row"><input id="sp" type="number" placeholder="Precio base / referencia"><input id="inc" type="number" placeholder="Incremento mínimo" value="500"></div>
+<input id="dur" type="number" inputmode="numeric" placeholder="Duración en minutos (vacío = cierre manual)">
 <input id="img" type="file" accept="image/*"><div class="row" style="margin-top:6px"><button onclick="saveLot()" id="addb">Agregar lote</button><button id="cnc" class="s" style="display:none" onclick="resetForm()">Cancelar</button></div></div>
 <div id="list"></div>
 <button class="s" onclick="SB.auth.signOut().then(()=>location.reload())">Salir</button>
@@ -40,24 +41,24 @@ function wa(l){const p=phones[l.winner_id]||'';return `<a target="_blank" href="
 function draw(){
   const live=lots.find(l=>l.status==='live');
   const closed=lots.filter(l=>l.status==='closed').sort((a,b)=>b.closed_at>a.closed_at?1:-1)[0];
-  $('last').innerHTML=closed&&closed.winner_name?`<div class="card win"><b>🏆 Último ganador: ${esc(closed.winner_name)}</b><br>${esc(closed.title)} — ${money(closed.current_price)}<br>Celular: ${wa(closed)}</div>`:'';
+  $('last').innerHTML=closed&&closed.winner_name?`<div class="card win"><b>🏆 Último ganador: ${esc(closed.winner_name)}</b><br>${esc(closed.title)} — ${money(closed.current_price)}<br>Celular: ${wa(closed)}<br>${closed.paid_at?'✅ Pagado por Mercado Pago':'⏳ Pendiente de pago'}</div>`:'';
   $('liveBox').innerHTML=live?`<div class="card"><span class="tag live">● EN VIVO</span> <b>${esc(live.title)}</b>
-    <div class="price">${money(live.current_price)}</div><div class="hot">${live.leader_name?'🔥 '+esc(live.leader_name):'Sin ofertas'}</div>
+    <div class="price">${money(live.current_price)}</div>${live.ends_at?`<div class="mut">⏱ Cierra a las ${new Date(live.ends_at).toLocaleTimeString('es-AR')}</div>`:''}<div class="hot">${live.leader_name?'🔥 '+esc(live.leader_name):'Sin ofertas'}</div>
     <div class="bids">${bids.map(x=>`<div><span>${esc(x.name)}</span><b>${money(x.amount)}</b></div>`).join('')}</div>
     <button class="d" style="width:100%;margin-top:10px" onclick="rpc('close_lot','${live.id}')">⏹ Cerrar lote y definir ganador</button></div>`:'';
   $('list').innerHTML=lots.map(l=>`<div class="card"><div class="row" style="flex-wrap:nowrap">
     ${l.image_url?`<img src="${esc(l.image_url)}" style="width:70px;height:70px;object-fit:cover;border-radius:8px;flex:none;margin:0">`:''}
     <div><b>${l.position}. ${esc(l.title)}</b> <span class="tag">${l.status==='pending'?'pendiente':l.status==='live'?'en vivo':'cerrado'}</span>
-    <div class="mut">Base ${money(l.start_price)} · +${money(l.increment)}${l.status==='closed'?' · Ganó: '+esc(l.winner_name||'nadie')+' '+(l.winner_id?wa(l):''):''}</div></div></div>
+    <div class="mut">Base ${money(l.start_price)} · +${money(l.increment)}${l.status==='closed'?' · Ganó: '+esc(l.winner_name||'nadie')+' '+(l.winner_id?wa(l):'')+(l.winner_id?(l.paid_at?' · ✅ Pagado':' · ⏳ Sin pagar'):''):''}</div></div></div>
     <div class="row" style="margin-top:8px">${l.status==='pending'?`<button class="g" ${live?'disabled':''} onclick="rpc('launch_lot','${l.id}')">▶ Lanzar</button>`:''}${l.status==='closed'?`<button class="g" ${live?'disabled':''} onclick="rpc('relaunch_lot','${l.id}')">🔁 Relanzar</button>`:''}<button class="s" onclick="edit('${l.id}')">✏️ Editar</button>${l.status!=='live'?`<button class="s" onclick="del('${l.id}')">Borrar</button>`:''}</div></div>`).join('');
 }
 async function rpc(fn,id){const {error}=await SB.rpc(fn,{p_lot:id});if(error)alert(error.message);load();}
 async function del(id){if(confirm('¿Borrar lote?')){await SB.from('lots').delete().eq('id',id);load();}}
 let editId=null;
-function resetForm(){editId=null;['t','d','sp','img'].forEach(i=>$(i).value='');$('inc').value=500;
+function resetForm(){editId=null;['t','d','sp','dur','img'].forEach(i=>$(i).value='');$('inc').value=500;
   $('ftitle').textContent='Nuevo lote';$('addb').textContent='Agregar lote';$('cnc').style.display='none';}
 function edit(id){const l=lots.find(x=>x.id===id);if(!l)return;editId=id;
-  $('t').value=l.title;$('d').value=l.description||'';$('sp').value=l.start_price;$('inc').value=l.increment;$('img').value='';
+  $('t').value=l.title;$('d').value=l.description||'';$('sp').value=l.start_price;$('inc').value=l.increment;$('dur').value=l.duration_minutes||'';$('img').value='';
   $('ftitle').textContent='Editando: '+l.title+(l.status==='live'?' (en vivo: el precio base no cambia)':'');
   $('addb').textContent='Guardar cambios';$('cnc').style.display='block';$('t').scrollIntoView({behavior:'smooth',block:'center'});}
 async function saveLot(){
@@ -67,20 +68,21 @@ async function saveLot(){
     const up=await SB.storage.from('lots').upload(path,f);
     if(up.error){$('addb').disabled=false;return alert(up.error.message);}
     url=SB.storage.from('lots').getPublicUrl(path).data.publicUrl;}
-  const sp=+$('sp').value||0,inc=+$('inc').value||100;let error;
+  const sp=+$('sp').value||0,inc=+$('inc').value||100,dur=+$('dur').value||null;let error;
   if(editId){
     const l=lots.find(x=>x.id===editId);
-    const u={title:t,description:$('d').value,increment:inc};
+    const u={title:t,description:$('d').value,increment:inc,duration_minutes:dur};
     if(url)u.image_url=url;
     if(l.status==='pending'){u.start_price=sp;u.current_price=sp;}
     if(l.status==='closed')u.start_price=sp;
     ({error}=await SB.from('lots').update(u).eq('id',editId));
   }else{
     const pos=Math.max(0,...lots.map(l=>l.position))+1;
-    ({error}=await SB.from('lots').insert({title:t,description:$('d').value,image_url:url,start_price:sp,current_price:sp,increment:inc,position:pos}));
+    ({error}=await SB.from('lots').insert({title:t,description:$('d').value,image_url:url,start_price:sp,current_price:sp,increment:inc,duration_minutes:dur,position:pos}));
   }
   $('addb').disabled=false;if(error)return alert(error.message);
   resetForm();load();
 }
+setInterval(()=>{if(lots.some(l=>l.status==='live'&&l.ends_at&&new Date(l.ends_at)<=new Date()))SB.rpc('close_expired').then(load)},5000);
 init();
 </script></body></html>

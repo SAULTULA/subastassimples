@@ -17,17 +17,68 @@
 <script src="config.js"></script>
 <script>
 let me=JSON.parse(localStorage.getItem('me')||'null'),live,next,last,bids=[];
+let offset=0,lastClose=0,contactWa=null,contactFor=null,payMsg='';
+if(me&&!me.secret){localStorage.removeItem('me');me=null;}
+const pagoParam=new URLSearchParams(location.search).get('pago');
+if(pagoParam==='ok'||pagoParam==='pendiente')payMsg='Estamos confirmando tu pago… en unos segundos aparece el botón de WhatsApp.';
+if(pagoParam==='error')payMsg='El pago no se completó. Podés intentar de nuevo.';
+const newSecret=()=>Array.from(crypto.getRandomValues(new Uint8Array(24)),b=>b.toString(16).padStart(2,'0')).join('');
+async function syncClock(){ // reloj del servidor para que la cuenta regresiva sea igual en todos los celulares
+  const t0=Date.now(),{data}=await SB.rpc('server_now');
+  if(data)offset=new Date(data).getTime()-(t0+Date.now())/2;
+}
+const isExpired=()=>!!(live&&live.ends_at&&Date.now()+offset>=new Date(live.ends_at).getTime());
+const fmt=ms=>{const s=Math.ceil(ms/1000),h=Math.floor(s/3600),m=Math.floor(s%3600/60),x=s%60,p=n=>String(n).padStart(2,'0');return (h?h+':':'')+p(m)+':'+p(x)};
+function tick(){
+  if(!live||!live.ends_at)return;
+  const ms=new Date(live.ends_at).getTime()-(Date.now()+offset),el=$('cd');
+  if(el)el.textContent=ms>0?fmt(ms):'Finalizado';
+  if(ms<=0){
+    $('bidbox').style.display='none';
+    if(Date.now()-lastClose>3000){lastClose=Date.now();SB.rpc('close_expired').then(load);}
+  }
+}
+async function pay(){
+  payMsg='Abriendo Mercado Pago…';draw();
+  try{
+    const r=await fetch('/api/create-payment',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({lot_id:String(last.id),participant_id:String(me.id),secret:me.secret})});
+    const d=await r.json();
+    if(!r.ok||!d.url)throw new Error(d.error||'No se pudo iniciar el pago');
+    location.href=d.url;
+  }catch(e){payMsg=e.message;draw();}
+}
+async function loadContact(){ // el servidor entrega el WhatsApp solo si ya pagaste
+  if(last&&me&&me.secret&&last.winner_id===me.id&&last.paid_at&&contactFor!==last.id){
+    const {data}=await SB.rpc('get_contact',{p_lot:String(last.id),p_participant:String(me.id),p_secret:me.secret});
+    if(data){contactWa=data;contactFor=last.id;draw();}
+  }
+}
+function wonCard(){
+  const head=`<b>🏆 ¡Ganaste "${esc(last.title)}" por ${money(last.current_price)}!</b>`;
+  if(last.paid_at){
+    if(!contactWa)return `<div class="card win">${head}<p>✅ Pago recibido. Cargando el contacto…</p></div>`;
+    const txt=encodeURIComponent('Hola, gané "'+last.title+'" en la subasta y ya pagué.');
+    return `<div class="card win">${head}<p>✅ Pago recibido. Coordiná la entrega con la organizadora:</p>
+      <a class="btn-wa" href="https://wa.me/${esc(contactWa)}?text=${txt}" target="_blank" rel="noopener">Contactar por WhatsApp</a></div>`;
+  }
+  if(!me.secret)return `<div class="card win">${head}<p>Recargá la página para poder pagar.</p></div>`;
+  return `<div class="card win">${head}<p>Pagá con Mercado Pago para recibir el contacto de la organizadora.</p>
+    <button onclick="pay()" style="width:100%">Pagar ${money(last.current_price)} con Mercado Pago</button>
+    <div class="mut" style="margin-top:8px">${esc(payMsg)}</div></div>`;
+}
 async function register(){
   const n=$('nm').value.trim(),p=$('ph').value.replace(/\D/g,'');
   if(!n||p.length<8)return alert('Poné nombre y celular válido');
-  const {data,error}=await SB.rpc('register',{p_name:n,p_phone:p});
+  const s=newSecret();
+  const {data,error}=await SB.rpc('register',{p_name:n,p_phone:p,p_secret:s});
   if(error)return alert(error.message);
-  me={id:data,name:n};localStorage.setItem('me',JSON.stringify(me));draw();
+  me={id:data,name:n,secret:s};localStorage.setItem('me',JSON.stringify(me));draw();
 }
 const minBid=()=>!live?0:(bids.length?Number(live.current_price)+Number(live.increment):Number(live.start_price));
 async function bid(v){
   v=v||minBid();
-  const {data,error}=await SB.rpc('place_bid',{p_lot:live.id,p_participant:me.id,p_amount:v});
+  const {data,error}=await SB.rpc('place_bid',{p_lot:live.id,p_participant:me.id,p_secret:me.secret,p_amount:v});
   $('msg').textContent=error?error.message:data==='ok'?'✅ Ofertaste '+money(v):data.startsWith('low')?'Tu oferta es baja, mínimo '+money(data.split(':')[1]):data==='closed'?'El lote ya cerró':'Registrate de nuevo';
   $('amt').value='';load();
 }
@@ -38,21 +89,21 @@ async function load(){
     SB.from('lots').select('*').eq('status','closed').order('closed_at',{ascending:false}).limit(1)]);
   live=a.data?.[0];next=b.data?.[0];last=c.data?.[0];bids=[];
   if(live){const r=await SB.from('bids').select('name,amount').eq('lot_id',live.id).order('amount',{ascending:false}).limit(6);bids=r.data||[];}
-  draw();
+  draw();loadContact();
 }
 function draw(){
   $('reg').style.display=me?'none':'block';
-  $('bidbox').style.display=me&&live?'block':'none';
+  $('bidbox').style.display=me&&live&&!isExpired()?'block':'none';
   let bn='';
   if(last&&me&&last.winner_id===me.id)
-    bn=`<div class="card win"><b>🏆 ¡Ganaste "${esc(last.title)}" por ${money(last.current_price)}!</b><p>Escribile a la organizadora para coordinar la entrega:</p>
-    <p><a href="https://wa.me/${ADMIN_WA}" target="_blank"><b>1166508379</b></a> (WhatsApp)</p></div>`;
+    bn=wonCard();
   else if(last&&!live)
     bn=`<div class="card"><span class="mut">Último lote cerrado</span><br><b>${esc(last.title)}</b> — ganó <b>${esc(last.winner_name||'sin ofertas')}</b> ${last.winner_name?'por '+money(last.current_price):''}</div>`;
   $('banner').innerHTML=bn;
   $('live').innerHTML=live?`<div class="card"><span class="tag live">● EN VIVO</span>
     ${live.image_url?`<img src="${esc(live.image_url)}" style="margin-top:10px">`:''}
     <h2 style="margin:8px 0 4px">${esc(live.title)}</h2><div class="mut">${esc(live.description)}</div>
+    ${live.ends_at?'<div class="mut" style="margin-top:6px">⏱ Cierra en <b id="cd">--:--</b></div>':''}
     <div class="mut" style="margin-top:8px">${bids.length?'Oferta actual':'Precio base'}</div><div class="price">${money(live.current_price)}</div>
     ${live.leader_name?`<div class="hot">🔥 ${esc(live.leader_name)} se está llevando este lote${me&&live.leader_id===me.id?' (¡vos!)':''}</div>`:'<div class="mut">Todavía sin ofertas</div>'}
     <div class="bids">${bids.map(x=>`<div><span>${esc(x.name)}</span><b>${money(x.amount)}</b></div>`).join('')}</div></div>`
@@ -61,8 +112,9 @@ function draw(){
   $('next').innerHTML=next?`<div class="card"><span class="mut">Próximo lote</span><div class="row" style="flex-wrap:nowrap;margin-top:6px">
     ${next.image_url?`<img src="${esc(next.image_url)}" style="width:80px;height:80px;object-fit:cover;border-radius:8px;flex:none;margin:0">`:''}
     <div><b>${esc(next.title)}</b><div class="mut">Base ${money(next.start_price)}</div></div></div></div>`:'';
+  tick();
 }
 SB.channel('pub').on('postgres_changes',{event:'*',schema:'public',table:'lots'},load)
  .on('postgres_changes',{event:'*',schema:'public',table:'bids'},load).subscribe();
-setInterval(load,8000);load();
+syncClock().then(load);setInterval(load,8000);setInterval(tick,1000);
 </script></body></html>
