@@ -17,7 +17,8 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script src="config.js"></script>
 <script>
-let lots=[],bids=[],phones={};
+const MAX_LIVE=10;
+let lots=[],bidsBy={},phones={};
 async function login(){
   const {error}=await SB.auth.signInWithPassword({email:$('em').value,password:$('pw').value});
   error?alert(error.message):init();
@@ -31,26 +32,27 @@ async function init(){
 }
 async function load(){
   lots=(await SB.from('lots').select('*').order('position')).data||[];
-  const live=lots.find(l=>l.status==='live');
-  bids=live?(await SB.from('bids').select('name,amount').eq('lot_id',live.id).order('amount',{ascending:false}).limit(6)).data||[]:[];
+  const lives=lots.filter(l=>l.status==='live');
+  const res=await Promise.all(lives.map(l=>SB.from('bids').select('name,amount').eq('lot_id',l.id).order('amount',{ascending:false}).limit(6)));
+  bidsBy={};lives.forEach((l,i)=>bidsBy[l.id]=res[i].data||[]);
   const ids=lots.filter(l=>l.winner_id).map(l=>l.winner_id);
   if(ids.length)(await SB.from('participants').select('id,phone').in('id',ids)).data?.forEach(p=>phones[p.id]=p.phone);
   draw();
 }
 function wa(l){const p=phones[l.winner_id]||'';return `<a target="_blank" href="https://wa.me/54${p.startsWith('9')?p:'9'+p}">${esc(p)}</a>`}
 function draw(){
-  const live=lots.find(l=>l.status==='live');
+  const lives=lots.filter(l=>l.status==='live'),full=lives.length>=MAX_LIVE;
   const closed=lots.filter(l=>l.status==='closed').sort((a,b)=>b.closed_at>a.closed_at?1:-1)[0];
   $('last').innerHTML=closed&&closed.winner_name?`<div class="card win"><b>🏆 Último ganador: ${esc(closed.winner_name)}</b><br>${esc(closed.title)} — ${money(closed.current_price)}<br>Celular: ${wa(closed)}<br>${closed.paid_at?'✅ Pagado por Mercado Pago':'⏳ Pendiente de pago'}</div>`:'';
-  $('liveBox').innerHTML=live?`<div class="card"><span class="tag live">● EN VIVO</span> <b>${esc(live.title)}</b>
+  $('liveBox').innerHTML=(lives.length?`<div class="mut">En vivo: <b>${lives.length}/${MAX_LIVE}</b>${full?' — límite alcanzado':''}</div>`:'')+lives.map(live=>`<div class="card"><span class="tag live">● EN VIVO</span> <b>${esc(live.title)}</b>
     <div class="price">${money(live.current_price)}</div>${live.ends_at?`<div class="mut">⏱ Cierra a las ${new Date(live.ends_at).toLocaleTimeString('es-AR')}</div>`:''}<div class="hot">${live.leader_name?'🔥 '+esc(live.leader_name):'Sin ofertas'}</div>
-    <div class="bids">${bids.map(x=>`<div><span>${esc(x.name)}</span><b>${money(x.amount)}</b></div>`).join('')}</div>
-    <button class="d" style="width:100%;margin-top:10px" onclick="rpc('close_lot','${live.id}')">⏹ Cerrar lote y definir ganador</button></div>`:'';
+    <div class="bids">${(bidsBy[live.id]||[]).map(x=>`<div><span>${esc(x.name)}</span><b>${money(x.amount)}</b></div>`).join('')}</div>
+    <button class="d" style="width:100%;margin-top:10px" onclick="rpc('close_lot','${live.id}')">⏹ Cerrar lote y definir ganador</button></div>`).join('');
   $('list').innerHTML=lots.map(l=>`<div class="card"><div class="row" style="flex-wrap:nowrap">
     ${l.image_url?`<img src="${esc(l.image_url)}" style="width:70px;height:70px;object-fit:cover;border-radius:8px;flex:none;margin:0">`:''}
     <div><b>${l.position}. ${esc(l.title)}</b> <span class="tag">${l.status==='pending'?'pendiente':l.status==='live'?'en vivo':'cerrado'}</span>
     <div class="mut">Base ${money(l.start_price)} · +${money(l.increment)}${l.status==='closed'?' · Ganó: '+esc(l.winner_name||'nadie')+' '+(l.winner_id?wa(l):'')+(l.winner_id?(l.paid_at?' · ✅ Pagado':' · ⏳ Sin pagar'):''):''}</div></div></div>
-    <div class="row" style="margin-top:8px">${l.status==='pending'?`<button class="g" ${live?'disabled':''} onclick="rpc('launch_lot','${l.id}')">▶ Lanzar</button>`:''}${l.status==='closed'?`<button class="g" ${live?'disabled':''} onclick="rpc('relaunch_lot','${l.id}')">🔁 Relanzar</button>`:''}<button class="s" onclick="edit('${l.id}')">✏️ Editar</button>${l.status!=='live'?`<button class="s" onclick="del('${l.id}')">Borrar</button>`:''}</div></div>`).join('');
+    <div class="row" style="margin-top:8px">${l.status==='pending'?`<button class="g" ${full?'disabled':''} onclick="rpc('launch_lot','${l.id}')">▶ Lanzar</button>`:''}${l.status==='closed'?`<button class="g" ${full?'disabled':''} onclick="rpc('relaunch_lot','${l.id}')">🔁 Relanzar</button>`:''}<button class="s" onclick="edit('${l.id}')">✏️ Editar</button>${l.status!=='live'?`<button class="s" onclick="del('${l.id}')">Borrar</button>`:''}</div></div>`).join('');
 }
 async function rpc(fn,id){const {error}=await SB.rpc(fn,{p_lot:id});if(error)alert(error.message);load();}
 async function del(id){if(confirm('¿Borrar lote?')){await SB.from('lots').delete().eq('id',id);load();}}

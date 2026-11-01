@@ -274,3 +274,40 @@ a:hover { color: #ffe4a1; }
 }
 .btn-wa:hover { color: #06251a; filter: brightness(1.06); }
 #cd { color: var(--acc-strong); font-variant-numeric: tabular-nums; }
+
+/* ═══ Subastas simultáneas (BEM) ═══ */
+.page--wide { width: min(100% - 32px, 1240px); }
+.reg--hidden { display: none; }
+.reg__btn { width: 100%; margin-top: 6px; }
+.wins { display: grid; gap: 12px; }
+.wins:empty { display: none; }
+.win__pay { width: 100%; }
+.win__msg { margin-top: 8px; }
+
+.auctions {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.auctions > .card { margin: 0; }
+.auctions__empty { grid-column: 1 / -1; text-align: center; }
+
+.auction { display: flex; flex-direction: column; }
+.auction__img { aspect-ratio: 4 / 3; height: auto; max-height: none; }
+.auction__title { margin: 8px 0 4px; font-size: clamp(1.1rem, 2.4vw, 1.35rem); }
+.auction__desc { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.auction__timer { margin-top: 6px; }
+.auction__cd { color: var(--acc-strong); font-variant-numeric: tabular-nums; }
+.auction__label { margin-top: 8px; }
+.auction__price { font-size: clamp(1.8rem, 4vw, 2.3rem); }
+.auction__bid { display: grid; gap: 8px; margin-top: auto; padding-top: 12px; }
+.auction__quick { width: 100%; min-height: 50px; }
+.auction__msg { min-height: 1.2em; overflow-wrap: anywhere; }
+.auction--leading { border-color: rgba(67, 214, 160, .5); }
+.auction--ended { opacity: .6; }
+.auction--ended .auction__bid { display: none; }
+
+.next__body { display: flex; gap: 10px; align-items: center; margin-top: 6px; }
+.next__img { width: 80px; height: 80px; flex: none; margin: 0; object-fit: cover; border-radius: 8px; }
+
