@@ -308,6 +308,18 @@ a:hover { color: #ffe4a1; }
 .auction--ended { opacity: .6; }
 .auction--ended .auction__bid { display: none; }
 
-.next__body { display: flex; gap: 10px; align-items: center; margin-top: 6px; }
-.next__img { width: 80px; height: 80px; flex: none; margin: 0; object-fit: cover; border-radius: 8px; }
+.next__body { display: flex; gap: 14px; align-items: center; margin-top: 8px; }
+.next__body > div { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.card .next__img {
+  width: 96px;
+  height: 96px;
+  min-width: 96px;
+  max-height: none;
+  flex: none;
+  margin: 0;
+  object-fit: cover;
+  border-radius: 12px;
+}
+.card .auction__img { width: 100%; aspect-ratio: 4 / 3; height: auto; max-height: none; }
+.auctions__empty { padding-block: clamp(28px, 6vw, 48px); }
 
