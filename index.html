@@ -11,6 +11,12 @@
 
 <body>
   <main class="page page--wide">
+    <!-- Carrusel de publicidades: se llena desde Supabase -->
+    <section id="adCarousel" class="adcar" aria-label="Publicidades" style="display:none">
+      <div id="adTrack" class="adcar__track"></div>
+      <div class="adcar__nav" id="adNav" aria-hidden="true"></div>
+    </section>
+
     <header class="brand">
       <img class="brand__logo" src="logo.png" alt="Logo Subasta" width="1254" height="1254" fetchpriority="high">
       <div class="brand__text">
@@ -18,12 +24,6 @@
         <p class="brand__tagline">Pujá en tiempo real · Ganá al mejor precio</p>
       </div>
     </header>
-
-    <!-- Carrusel de publicidades: se llena desde Supabase -->
-    <section id="adCarousel" class="adcar" aria-label="Publicidades" style="display:none">
-      <div id="adTrack" class="adcar__track"></div>
-      <div class="adcar__nav" id="adNav" aria-hidden="true"></div>
-    </section>
 
     <div id="reg" class="card reg reg--hidden"><b>Anotate para pujar</b>
       <input id="nm" placeholder="Nombre"><input id="ph" placeholder="Celular (ej: 1155551234)" inputmode="tel">
