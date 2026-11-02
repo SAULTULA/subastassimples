@@ -6,19 +6,71 @@
 <button onclick="login()" style="width:100%">Ingresar</button></div>
 <div id="panel" style="display:none">
 <div id="last"></div><div id="liveBox"></div>
+
+<!-- ══ TABS ═══════════════════════════════════════════════════════ -->
+<div class="adm-tabs">
+  <button id="tabLots" class="adm-tab adm-tab--active" onclick="showTab('lots')">📦 Lotes</button>
+  <button id="tabAds"  class="adm-tab"                 onclick="showTab('ads')">📢 Publicidades</button>
+</div>
+
+<!-- ══ PANEL LOTES ════════════════════════════════════════════════ -->
+<div id="panelLots">
 <div class="card"><b id="ftitle">Nuevo lote</b>
 <input id="t" placeholder="Título"><textarea id="d" rows="2" placeholder="Descripción"></textarea>
 <div class="row"><input id="sp" type="number" placeholder="Precio base / referencia"><input id="inc" type="number" placeholder="Incremento mínimo" value="500"></div>
 <input id="dur" type="number" inputmode="numeric" placeholder="Duración en minutos (vacío = cierre manual)">
 <input id="img" type="file" accept="image/*"><div class="row" style="margin-top:6px"><button onclick="saveLot()" id="addb">Agregar lote</button><button id="cnc" class="s" style="display:none" onclick="resetForm()">Cancelar</button></div></div>
 <div id="list"></div>
-<button class="s" onclick="SB.auth.signOut().then(()=>location.reload())">Salir</button>
+</div>
+
+<!-- ══ PANEL PUBLICIDADES ═════════════════════════════════════════ -->
+<div id="panelAds" style="display:none">
+<div class="card">
+  <b id="adftitle">Nueva publicidad</b>
+  <div class="row">
+    <div style="flex:1;min-width:0;display:grid;gap:6px">
+      <input id="an"   placeholder="Nombre del negocio *">
+      <textarea id="adesc" rows="2" placeholder="Descripción corta"></textarea>
+      <input id="aweb"  placeholder="Sitio web (ej: mitienda.com.ar)">
+      <input id="aemail" type="email" placeholder="Email de contacto">
+      <input id="aphone" placeholder="Teléfono (ej: 1155551234)">
+      <input id="aaddr"  placeholder="Dirección">
+      <input id="aig"    placeholder="Instagram (solo @usuario)">
+      <input id="afb"    placeholder="Facebook (solo @usuario)">
+      <input id="awa"    placeholder="WhatsApp (ej: 5491155551234)">
+    </div>
+    <div style="display:grid;gap:8px;align-content:start">
+      <input id="aimg" type="file" accept="image/*">
+      <img id="apreview" src="" alt="" style="display:none;width:120px;height:120px;object-fit:contain;border-radius:12px;border:1px solid rgba(255,255,255,.12)">
+    </div>
+  </div>
+  <label style="display:flex;align-items:center;gap:8px;margin-top:6px;cursor:pointer">
+    <input id="aactive" type="checkbox" checked> Publicidad activa
+  </label>
+  <div class="row" style="margin-top:8px">
+    <button onclick="saveAd()" id="adsavebtn">Agregar publicidad</button>
+    <button id="adcnc" class="s" style="display:none" onclick="resetAdForm()">Cancelar</button>
+  </div>
+</div>
+<div id="adlist"></div>
+</div>
+
+<button class="s" style="margin-top:8px" onclick="SB.auth.signOut().then(()=>location.reload())">Salir</button>
 </div></main>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script src="config.js"></script>
 <script>
+// ── helpers ───────────────────────────────────────────────────────────
 const MAX_LIVE=10;
-let lots=[],bidsBy={},phones={};
+let lots=[],bidsBy={},phones={},ads=[];
+function showTab(t){
+  ['lots','ads'].forEach(x=>{
+    $(x==='lots'?'panelLots':'panelAds').style.display=x===t?'block':'none';
+    $('tab'+x.charAt(0).toUpperCase()+x.slice(1)).classList.toggle('adm-tab--active',x===t);
+  });
+}
+
+// ── auth ──────────────────────────────────────────────────────────────
 async function login(){
   const {error}=await SB.auth.signInWithPassword({email:$('em').value,password:$('pw').value});
   error?alert(error.message):init();
@@ -26,10 +78,15 @@ async function login(){
 async function init(){
   const {data}=await SB.auth.getSession();if(!data.session)return;
   $('login').style.display='none';$('panel').style.display='block';
-  SB.channel('adm').on('postgres_changes',{event:'*',schema:'public',table:'lots'},load)
-   .on('postgres_changes',{event:'*',schema:'public',table:'bids'},load).subscribe();
-  load();
+  SB.channel('adm')
+    .on('postgres_changes',{event:'*',schema:'public',table:'lots'},load)
+    .on('postgres_changes',{event:'*',schema:'public',table:'bids'},load)
+    .on('postgres_changes',{event:'*',schema:'public',table:'ads'},loadAds)
+    .subscribe();
+  load();loadAds();
 }
+
+// ── lotes ─────────────────────────────────────────────────────────────
 async function load(){
   lots=(await SB.from('lots').select('*').order('position')).data||[];
   const lives=lots.filter(l=>l.status==='live');
@@ -52,14 +109,14 @@ function draw(){
     ${l.image_url?`<img src="${esc(l.image_url)}" style="width:70px;height:70px;object-fit:cover;border-radius:8px;flex:none;margin:0">`:''}
     <div><b>${l.position}. ${esc(l.title)}</b> <span class="tag">${l.status==='pending'?'pendiente':l.status==='live'?'en vivo':'cerrado'}</span>
     <div class="mut">Base ${money(l.start_price)} · +${money(l.increment)}${l.status==='closed'?' · Ganó: '+esc(l.winner_name||'nadie')+' '+(l.winner_id?wa(l):'')+(l.winner_id?(l.paid_at?' · ✅ Pagado':' · ⏳ Sin pagar'):''):''}</div></div></div>
-    <div class="row" style="margin-top:8px">${l.status==='pending'?`<button class="g" ${full?'disabled':''} onclick="rpc('launch_lot','${l.id}')">▶ Lanzar</button>`:''}${l.status==='closed'?`<button class="g" ${full?'disabled':''} onclick="rpc('relaunch_lot','${l.id}')">🔁 Relanzar</button>`:''}<button class="s" onclick="edit('${l.id}')">✏️ Editar</button>${l.status!=='live'?`<button class="s" onclick="del('${l.id}')">Borrar</button>`:''}</div></div>`).join('');
+    <div class="row" style="margin-top:8px">${l.status==='pending'?`<button class="g" ${full?'disabled':''} onclick="rpc('launch_lot','${l.id}')">▶ Lanzar</button>`:''}${l.status==='closed'?`<button class="g" ${full?'disabled':''} onclick="rpc('relaunch_lot','${l.id}')">🔁 Relanzar</button>`:''}<button class="s" onclick="editLot('${l.id}')">✏️ Editar</button>${l.status!=='live'?`<button class="s" onclick="del('${l.id}')">Borrar</button>`:''}</div></div>`).join('');
 }
 async function rpc(fn,id){const {error}=await SB.rpc(fn,{p_lot:id});if(error)alert(error.message);load();}
 async function del(id){if(confirm('¿Borrar lote?')){await SB.from('lots').delete().eq('id',id);load();}}
 let editId=null;
 function resetForm(){editId=null;['t','d','sp','dur','img'].forEach(i=>$(i).value='');$('inc').value=500;
   $('ftitle').textContent='Nuevo lote';$('addb').textContent='Agregar lote';$('cnc').style.display='none';}
-function edit(id){const l=lots.find(x=>x.id===id);if(!l)return;editId=id;
+function editLot(id){const l=lots.find(x=>x.id===id);if(!l)return;editId=id;
   $('t').value=l.title;$('d').value=l.description||'';$('sp').value=l.start_price;$('inc').value=l.increment;$('dur').value=l.duration_minutes||'';$('img').value='';
   $('ftitle').textContent='Editando: '+l.title+(l.status==='live'?' (en vivo: el precio base no cambia)':'');
   $('addb').textContent='Guardar cambios';$('cnc').style.display='block';$('t').scrollIntoView({behavior:'smooth',block:'center'});}
@@ -85,6 +142,95 @@ async function saveLot(){
   $('addb').disabled=false;if(error)return alert(error.message);
   resetForm();load();
 }
+
+// ── publicidades ──────────────────────────────────────────────────────
+let editAdId=null;
+$('aimg').addEventListener('change',()=>{
+  const f=$('aimg').files[0];if(!f)return;
+  const r=new FileReader();r.onload=e=>{$('apreview').src=e.target.result;$('apreview').style.display='block';};
+  r.readAsDataURL(f);
+});
+async function loadAds(){
+  ads=(await SB.from('ads').select('*').order('position')).data||[];
+  drawAds();
+}
+function drawAds(){
+  $('adlist').innerHTML=ads.map(a=>`<div class="card" style="display:grid;gap:8px">
+    <div class="row" style="flex-wrap:nowrap;align-items:center">
+      ${a.logo_url?`<img src="${esc(a.logo_url)}" style="width:60px;height:60px;object-fit:contain;border-radius:10px;flex:none;margin:0;border:1px solid rgba(255,255,255,.1)">`:'<span style="font-size:2rem">📢</span>'}
+      <div style="flex:1;min-width:0">
+        <b>${esc(a.name)}</b>
+        <span class="tag" style="margin-left:6px">${a.active?'activa':'inactiva'}</span>
+        ${a.web?`<div class="mut">${esc(a.web)}</div>`:''}
+        ${a.phone?`<div class="mut">📞 ${esc(a.phone)}</div>`:''}
+      </div>
+    </div>
+    <div class="row">
+      <button class="s" onclick="editAd('${a.id}')">✏️ Editar</button>
+      <button class="s" onclick="toggleAd('${a.id}',${!a.active})">${a.active?'⏸ Desactivar':'▶ Activar'}</button>
+      <button class="s" onclick="delAd('${a.id}')">Borrar</button>
+    </div>
+  </div>`).join('')||'<div class="card"><span class="mut">No hay publicidades cargadas.</span></div>';
+}
+function resetAdForm(){
+  editAdId=null;
+  ['an','adesc','aweb','aemail','aphone','aaddr','aig','afb','awa'].forEach(i=>$(i).value='');
+  $('aimg').value='';$('apreview').style.display='none';$('apreview').src='';
+  $('aactive').checked=true;
+  $('adftitle').textContent='Nueva publicidad';
+  $('adsavebtn').textContent='Agregar publicidad';
+  $('adcnc').style.display='none';
+}
+function editAd(id){
+  const a=ads.find(x=>x.id===id);if(!a)return;editAdId=id;
+  $('an').value=a.name;$('adesc').value=a.description||'';$('aweb').value=a.web||'';
+  $('aemail').value=a.email||'';$('aphone').value=a.phone||'';$('aaddr').value=a.address||'';
+  $('aig').value=a.instagram||'';$('afb').value=a.facebook||'';$('awa').value=a.whatsapp||'';
+  $('aactive').checked=a.active;
+  if(a.logo_url){$('apreview').src=a.logo_url;$('apreview').style.display='block';}
+  else{$('apreview').style.display='none';$('apreview').src='';}
+  $('adftitle').textContent='Editando: '+a.name;
+  $('adsavebtn').textContent='Guardar cambios';
+  $('adcnc').style.display='block';
+  $('an').scrollIntoView({behavior:'smooth',block:'center'});
+}
+async function saveAd(){
+  const name=$('an').value.trim();if(!name)return alert('Falta el nombre del negocio');
+  $('adsavebtn').disabled=true;
+  let logoUrl=editAdId?ads.find(x=>x.id===editAdId)?.logo_url||null:null;
+  const f=$('aimg').files[0];
+  if(f){
+    const path='ad-'+Date.now()+'-'+f.name.replace(/[^\w.]/g,'_');
+    const up=await SB.storage.from('ads').upload(path,f);
+    if(up.error){$('adsavebtn').disabled=false;return alert(up.error.message);}
+    logoUrl=SB.storage.from('ads').getPublicUrl(path).data.publicUrl;
+  }
+  const payload={
+    name, description:$('adesc').value||null, logo_url:logoUrl,
+    web:$('aweb').value||null, email:$('aemail').value||null,
+    phone:$('aphone').value||null, address:$('aaddr').value||null,
+    instagram:$('aig').value.replace(/^@/,'')||null,
+    facebook:$('afb').value.replace(/^@/,'')||null,
+    whatsapp:$('awa').value||null,
+    active:$('aactive').checked,
+  };
+  let error;
+  if(editAdId){
+    ({error}=await SB.from('ads').update(payload).eq('id',editAdId));
+  } else {
+    const pos=ads.length?Math.max(...ads.map(a=>a.position))+1:1;
+    ({error}=await SB.from('ads').insert({...payload,position:pos}));
+  }
+  $('adsavebtn').disabled=false;if(error)return alert(error.message);
+  resetAdForm();loadAds();
+}
+async function toggleAd(id,active){
+  await SB.from('ads').update({active}).eq('id',id);loadAds();
+}
+async function delAd(id){
+  if(confirm('¿Borrar publicidad?')){await SB.from('ads').delete().eq('id',id);loadAds();}
+}
+
 setInterval(()=>{if(lots.some(l=>l.status==='live'&&l.ends_at&&new Date(l.ends_at)<=new Date()))SB.rpc('close_expired').then(load)},5000);
 init();
 </script></body></html>

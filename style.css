@@ -296,7 +296,19 @@ a:hover { color: #ffe4a1; }
 .auction { display: flex; flex-direction: column; }
 .auction__img { aspect-ratio: 4 / 3; height: auto; max-height: none; }
 .auction__title { margin: 8px 0 4px; font-size: clamp(1.1rem, 2.4vw, 1.35rem); }
-.auction__desc { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.auction__desc--collapsed { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.auction__desc { display: block; }
+.auction__more {
+  all: unset;
+  display: inline-block;
+  margin-top: 4px;
+  color: var(--acc-strong);
+  font-size: .82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity .15s;
+}
+.auction__more:hover { opacity: .75; }
 .auction__timer { margin-top: 6px; }
 .auction__cd { color: var(--acc-strong); font-variant-numeric: tabular-nums; }
 .auction__label { margin-top: 8px; }
@@ -322,6 +334,98 @@ a:hover { color: #ffe4a1; }
 }
 .card .auction__img { width: 100%; aspect-ratio: 4 / 3; height: auto; max-height: none; }
 .auctions__empty { padding-block: clamp(28px, 6vw, 48px); }
+
+/* ═══ Carrusel de publicidades (BEM) ═══ */
+.adcar {
+  position: relative;
+  width: min(100%, 970px);
+  margin: 0 auto 20px;
+  overflow: hidden;
+  border-radius: 18px;
+  border: 1px solid rgba(246, 189, 75, .22);
+}
+.adcar__track {
+  display: flex;
+  transition: transform .45s cubic-bezier(.4,0,.2,1);
+  will-change: transform;
+}
+.adcar__nav {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 0 12px;
+  background: rgba(12, 19, 38, .85);
+}
+.adcar__dot {
+  all: unset;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: rgba(246, 189, 75, .28);
+  cursor: pointer;
+  transition: background .2s, transform .2s;
+}
+.adcar__dot--active { background: var(--acc-strong); transform: scale(1.3); }
+
+/* ── card individual de anuncio ── */
+.adcard {
+  flex: 0 0 100%;
+  display: flex;
+  align-items: center;
+  gap: clamp(14px, 3vw, 28px);
+  padding: clamp(14px, 2.5vw, 22px) clamp(16px, 3vw, 28px);
+  background:
+    radial-gradient(circle at 95% 10%, rgba(246, 189, 75, .15), transparent 45%),
+    linear-gradient(120deg, rgba(20, 29, 50, .98), rgba(12, 18, 36, .98));
+}
+.adcard__logo {
+  flex: none;
+  width: clamp(56px, 10vw, 96px);
+  height: clamp(56px, 10vw, 96px);
+  object-fit: contain;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,.08);
+  background: rgba(255,255,255,.04);
+}
+.adcard__body { display: grid; gap: 6px; min-width: 0; }
+.adcard__badge {
+  display: inline-block;
+  padding: 2px 8px;
+  background: var(--acc-strong);
+  color: #171306;
+  border-radius: 999px;
+  font-size: .65rem;
+  font-weight: 850;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+.adcard__name { font-size: clamp(1rem, 2.2vw, 1.35rem); color: var(--tx); }
+.adcard__desc { margin: 0; color: var(--mut); font-size: clamp(.82rem, 1.4vw, .95rem); line-height: 1.5; }
+.adcard__links { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 2px; }
+.adcard__link {
+  color: var(--acc-strong);
+  font-size: .88rem;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.adcard__link:hover { text-decoration: underline; color: #ffe4a1; }
+@media (max-width: 480px) {
+  .adcard { flex-direction: column; align-items: flex-start; }
+  .adcard__logo { width: 72px; height: 72px; }
+}
+
+/* ── tabs del admin ── */
+.adm-tabs { display: flex; gap: 8px; margin-bottom: 14px; }
+.adm-tab {
+  flex: 1;
+  background: rgba(255,255,255,.05);
+  border: 1px solid var(--bd);
+  border-radius: 12px;
+  color: var(--mut);
+  font-weight: 700;
+  transition: background .18s, color .18s;
+}
+.adm-tab--active { background: rgba(246,189,75,.14); color: var(--acc-strong); border-color: rgba(246,189,75,.35); }
 
 /* ═══ Registro arriba a la derecha 300×300 (BEM) ═══ */
 :root { --reg-size: 300px; }

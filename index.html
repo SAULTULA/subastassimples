@@ -18,6 +18,13 @@
         <p class="brand__tagline">Pujá en tiempo real · Ganá al mejor precio</p>
       </div>
     </header>
+
+    <!-- Carrusel de publicidades: se llena desde Supabase -->
+    <section id="adCarousel" class="adcar" aria-label="Publicidades" style="display:none">
+      <div id="adTrack" class="adcar__track"></div>
+      <div class="adcar__nav" id="adNav" aria-hidden="true"></div>
+    </section>
+
     <div id="reg" class="card reg reg--hidden"><b>Anotate para pujar</b>
       <input id="nm" placeholder="Nombre"><input id="ph" placeholder="Celular (ej: 1155551234)" inputmode="tel">
       <button id="regBtn" class="reg__btn">Entrar a la subasta</button>
@@ -150,7 +157,7 @@
     <span class="tag live">● EN VIVO</span>
     ${l.image_url ? `<img class="auction__img" src="${esc(l.image_url)}" alt="${esc(l.title)}" loading="lazy">` : ''}
     <h2 class="auction__title">${esc(l.title)}</h2>
-    ${l.description ? `<div class="mut auction__desc">${esc(l.description)}</div>` : ''}
+    ${l.description ? `<div class="mut auction__desc auction__desc--collapsed" id="desc-${esc(l.id)}">${esc(l.description)}</div><button class="auction__more" data-action="toggle-desc" data-lot="${esc(l.id)}" aria-expanded="false" aria-controls="desc-${esc(l.id)}">Ver más ▾</button>` : ''}
     ${l.ends_at ? `<div class="mut auction__timer">⏱ Cierra en <b id="cd-${esc(l.id)}" class="auction__cd">--:--</b></div>` : ''}
     <div class="mut auction__label">${l.leader_id ? 'Oferta actual' : 'Precio base'}</div>
     <div class="price auction__price">${money(l.current_price)}</div>
@@ -188,11 +195,82 @@
       if (b.dataset.action === 'bid') bid(id);
       if (b.dataset.action === 'bid-custom') bid(id, +($('amt-' + id)?.value || 0));
       if (b.dataset.action === 'pay') pay(id);
+      if (b.dataset.action === 'toggle-desc') {
+        const desc = $('desc-' + id);
+        const expanded = b.getAttribute('aria-expanded') === 'true';
+        desc.classList.toggle('auction__desc--collapsed', expanded);
+        b.setAttribute('aria-expanded', String(!expanded));
+        b.textContent = expanded ? 'Ver más ▾' : 'Ver menos ▴';
+      }
     });
     $('regBtn').addEventListener('click', register);
     SB.channel('pub').on('postgres_changes', { event: '*', schema: 'public', table: 'lots' }, load)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'bids' }, load).subscribe();
     syncClock().then(load); setInterval(load, 8000); setInterval(tick, 1000);
+
+    // ── carrusel de publicidades ──────────────────────────────────────
+    let _adsList = [], _adIdx = 0, _adTimer = null;
+
+    function adLink(href, label, icon) {
+      return `<a class="adcard__link" href="${esc(href)}" target="_blank" rel="noopener">${icon} ${esc(label)}</a>`;
+    }
+    function buildAdCard(a) {
+      const links = [];
+      if (a.web)       links.push(adLink('https://'+a.web.replace(/^https?:\/\//,''), a.web, '🌐'));
+      if (a.whatsapp)  links.push(adLink('https://wa.me/'+a.whatsapp, 'WhatsApp', '💬'));
+      if (a.instagram) links.push(adLink('https://instagram.com/'+a.instagram, '@'+a.instagram, '📸'));
+      if (a.facebook)  links.push(adLink('https://facebook.com/'+a.facebook, '@'+a.facebook, '👍'));
+      if (a.email)     links.push(adLink('mailto:'+a.email, a.email, '✉️'));
+      if (a.phone)     links.push(adLink('tel:'+a.phone, a.phone, '📞'));
+      if (a.address)   links.push(`<span class="adcard__link">📍 ${esc(a.address)}</span>`);
+      return `<article class="adcard">
+        ${a.logo_url ? `<img class="adcard__logo" src="${esc(a.logo_url)}" alt="${esc(a.name)}" loading="lazy">` : ''}
+        <div class="adcard__body">
+          <span class="adcard__badge">Publicidad</span>
+          <strong class="adcard__name">${esc(a.name)}</strong>
+          ${a.description ? `<p class="adcard__desc">${esc(a.description)}</p>` : ''}
+          ${links.length ? `<div class="adcard__links">${links.join('')}</div>` : ''}
+        </div>
+      </article>`;
+    }
+    function renderAds() {
+      const sec = $('adCarousel');
+      if (!_adsList.length) { sec.style.display = 'none'; return; }
+      sec.style.display = '';
+      $('adTrack').innerHTML = _adsList.map(buildAdCard).join('');
+      // puntos
+      $('adNav').innerHTML = _adsList.map((_, i) =>
+        `<button class="adcar__dot${i === 0 ? ' adcar__dot--active' : ''}" data-adidx="${i}" aria-label="Anuncio ${i+1}"></button>`
+      ).join('');
+      goAd(0);
+    }
+    function goAd(idx) {
+      _adIdx = (idx + _adsList.length) % _adsList.length;
+      $('adTrack').style.transform = `translateX(-${_adIdx * 100}%)`;
+      document.querySelectorAll('.adcar__dot').forEach((d, i) =>
+        d.classList.toggle('adcar__dot--active', i === _adIdx));
+    }
+    function startAdTimer() {
+      clearInterval(_adTimer);
+      if (_adsList.length > 1) _adTimer = setInterval(() => goAd(_adIdx + 1), 5000);
+    }
+    async function loadAds() {
+      const { data } = await SB.from('ads').select('*').eq('active', true).order('position').limit(5);
+      _adsList = data || [];
+      renderAds();
+      startAdTimer();
+    }
+    $('adNav').addEventListener('click', e => {
+      const b = e.target.closest('[data-adidx]');
+      if (b) { goAd(+b.dataset.adidx); startAdTimer(); }
+    });
+    SB.channel('pub')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'lots' }, load)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bids' }, load)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'ads'  }, loadAds)
+      .subscribe();
+    loadAds();
+
   </script>
 </body>
 
