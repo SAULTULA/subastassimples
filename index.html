@@ -1,157 +1,199 @@
-<!doctype html><html lang="es"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1"><title>Subastas en vivo</title>
-<meta name="description" content="Subastas en vivo: pujá en hasta 10 lotes al mismo tiempo.">
-<link rel="stylesheet" href="style.css"></head><body><main class="page page--wide">
-<h1>🔨 Subastas en vivo</h1>
-<section id="wins" class="wins"></section>
-<div id="banner"></div>
-<div id="reg" class="card reg reg--hidden"><b>Anotate para pujar</b>
-<input id="nm" placeholder="Nombre"><input id="ph" placeholder="Celular (ej: 1155551234)" inputmode="tel">
-<button id="regBtn" class="reg__btn">Entrar a la subasta</button></div>
-<section id="live" class="auctions"></section>
-<div id="next"></div>
-</main>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
-<script src="config.js"></script>
-<script>
-const MAX_LIVE=10;
-let me=JSON.parse(localStorage.getItem('me')||'null'),lives=[],bidsBy={},next=null,last=null,wins=[];
-let offset=0,lastClose=0,payMsg={},contacts={},msgs={};
-if(me&&!me.secret){localStorage.removeItem('me');me=null;}
-const pagoParam=new URLSearchParams(location.search).get('pago');
-const payNotice=pagoParam==='ok'||pagoParam==='pendiente'?'Estamos confirmando tu pago… en unos segundos aparece el botón de WhatsApp.':pagoParam==='error'?'El pago no se completó. Podés intentar de nuevo.':'';
-const newSecret=()=>Array.from(crypto.getRandomValues(new Uint8Array(24)),b=>b.toString(16).padStart(2,'0')).join('');
-async function syncClock(){ // reloj del servidor para que la cuenta regresiva sea igual en todos los celulares
-  const t0=Date.now(),{data}=await SB.rpc('server_now');
-  if(data)offset=new Date(data).getTime()-(t0+Date.now())/2;
-}
-const msLeft=l=>l.ends_at?new Date(l.ends_at).getTime()-(Date.now()+offset):Infinity;
-const fmt=ms=>{const s=Math.ceil(ms/1000),h=Math.floor(s/3600),m=Math.floor(s%3600/60),x=s%60,p=n=>String(n).padStart(2,'0');return (h?h+':':'')+p(m)+':'+p(x)};
-const minBid=l=>l.leader_id?Number(l.current_price)+Number(l.increment):Number(l.start_price);
+<!doctype html>
+<html lang="es">
 
-function tick(){
-  let expired=false;
-  for(const l of lives){
-    if(!l.ends_at)continue;
-    const ms=msLeft(l),el=$('cd-'+l.id);
-    if(el)el.textContent=ms>0?fmt(ms):'Finalizado';
-    if(ms<=0){expired=true;$('card-'+l.id)?.classList.add('auction--ended');}
-  }
-  if(expired&&Date.now()-lastClose>3000){lastClose=Date.now();SB.rpc('close_expired').then(load);}
-}
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Subastas en vivo</title>
+  <meta name="description" content="Subastas en vivo: pujá en hasta 10 lotes al mismo tiempo.">
+  <link rel="stylesheet" href="style.css">
+</head>
 
-async function pay(lotId){
-  payMsg[lotId]='Abriendo Mercado Pago…';drawWins();
-  try{
-    const r=await fetch('/api/create-payment',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({lot_id:String(lotId),participant_id:String(me.id),secret:me.secret})});
-    const d=await r.json();
-    if(!r.ok||!d.url)throw new Error(d.error||'No se pudo iniciar el pago');
-    location.href=d.url;
-  }catch(e){payMsg[lotId]=e.message;drawWins();}
-}
-async function loadContacts(){ // el servidor entrega el WhatsApp solo si ya pagaste
-  for(const l of wins){
-    if(!l.paid_at||contacts[l.id])continue;
-    const {data}=await SB.rpc('get_contact',{p_lot:String(l.id),p_participant:String(me.id),p_secret:me.secret});
-    if(data){contacts[l.id]=data;drawWins();}
-  }
-}
-function wonCard(l){
-  const head=`<b>🏆 ¡Ganaste "${esc(l.title)}" por ${money(l.current_price)}!</b>`;
-  if(l.paid_at){
-    const wa=contacts[l.id];
-    if(!wa)return `<div class="card win">${head}<p>✅ Pago recibido. Cargando el contacto…</p></div>`;
-    const txt=encodeURIComponent('Hola, gané "'+l.title+'" en la subasta y ya pagué.');
-    return `<div class="card win">${head}<p>✅ Pago recibido. Coordiná la entrega con la organizadora:</p>
+<body>
+  <main class="page page--wide">
+    <header class="brand">
+      <img class="brand__logo" src="logo.png" alt="Logo Subasta" width="1254" height="1254" fetchpriority="high">
+      <div class="brand__text">
+        <h1 class="brand__title">Subastas <span class="brand__accent">en vivo</span></h1>
+        <p class="brand__tagline">Pujá en tiempo real · Ganá al mejor precio</p>
+      </div>
+    </header>
+    <div id="reg" class="card reg reg--hidden"><b>Anotate para pujar</b>
+      <input id="nm" placeholder="Nombre"><input id="ph" placeholder="Celular (ej: 1155551234)" inputmode="tel">
+      <button id="regBtn" class="reg__btn">Entrar a la subasta</button>
+    </div>
+    <aside class="sell" aria-labelledby="sellTitle">
+      <img class="sell__icon" src="mazo.png" alt="" aria-hidden="true" width="96" height="96" loading="lazy">
+      <div class="sell__body">
+        <span class="sell__badge">📢 Publicidad</span>
+        <h2 id="sellTitle" class="sell__title">¿Tenés algo para vender? Subastalo acá</h2>
+        <p class="sell__note">Escribinos por WhatsApp. La comisión se acuerda antes de subir el producto.</p>
+      </div>
+      <a id="sellBtn" class="sell__btn"
+        href="https://wa.me/5491166508379?text=Hola%2C%20quiero%20subastar%20un%20producto%20en%20la%20p%C3%A1gina."
+        target="_blank" rel="noopener">Quiero subastar 📲</a>
+    </aside>
+    <footer class="ksm">
+      <a class="ksm__brand" href="https://ksmservicios.com.ar" target="_blank" rel="noopener">
+        <img class="ksm__logo" src="ksm.png" alt="KSM Servicios" width="120" height="120" loading="lazy">
+      </a>
+      <p class="ksm__info">
+        <a class="ksm__link" href="https://ksmservicios.com.ar" target="_blank" rel="noopener">ksmservicios.com.ar</a>
+        <span class="ksm__copy">© <span id="year">2026</span> KSM Servicios · Todos los derechos reservados</span>
+      </p>
+    </footer>
+    <section id="wins" class="wins"></section>
+    <div id="banner"></div>
+    <section id="live" class="auctions"></section>
+    <div id="next"></div>
+
+  </main>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+  <script src="config.js"></script>
+  <script>
+    const MAX_LIVE = 10;
+    let me = JSON.parse(localStorage.getItem('me') || 'null'), lives = [], bidsBy = {}, next = null, last = null, wins = [];
+    let offset = 0, lastClose = 0, payMsg = {}, contacts = {}, msgs = {};
+    if (me && !me.secret) { localStorage.removeItem('me'); me = null; }
+    const pagoParam = new URLSearchParams(location.search).get('pago');
+    const payNotice = pagoParam === 'ok' || pagoParam === 'pendiente' ? 'Estamos confirmando tu pago… en unos segundos aparece el botón de WhatsApp.' : pagoParam === 'error' ? 'El pago no se completó. Podés intentar de nuevo.' : '';
+    const newSecret = () => Array.from(crypto.getRandomValues(new Uint8Array(24)), b => b.toString(16).padStart(2, '0')).join('');
+    async function syncClock() { // reloj del servidor para que la cuenta regresiva sea igual en todos los celulares
+      const t0 = Date.now(), { data } = await SB.rpc('server_now');
+      if (data) offset = new Date(data).getTime() - (t0 + Date.now()) / 2;
+    }
+    const msLeft = l => l.ends_at ? new Date(l.ends_at).getTime() - (Date.now() + offset) : Infinity;
+    const fmt = ms => { const s = Math.ceil(ms / 1000), h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), x = s % 60, p = n => String(n).padStart(2, '0'); return (h ? h + ':' : '') + p(m) + ':' + p(x) };
+    const minBid = l => l.leader_id ? Number(l.current_price) + Number(l.increment) : Number(l.start_price);
+
+    function tick() {
+      let expired = false;
+      for (const l of lives) {
+        if (!l.ends_at) continue;
+        const ms = msLeft(l), el = $('cd-' + l.id);
+        if (el) el.textContent = ms > 0 ? fmt(ms) : 'Finalizado';
+        if (ms <= 0) { expired = true; $('card-' + l.id)?.classList.add('auction--ended'); }
+      }
+      if (expired && Date.now() - lastClose > 3000) { lastClose = Date.now(); SB.rpc('close_expired').then(load); }
+    }
+
+    async function pay(lotId) {
+      payMsg[lotId] = 'Abriendo Mercado Pago…'; drawWins();
+      try {
+        const r = await fetch('/api/create-payment', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ lot_id: String(lotId), participant_id: String(me.id), secret: me.secret })
+        });
+        const d = await r.json();
+        if (!r.ok || !d.url) throw new Error(d.error || 'No se pudo iniciar el pago');
+        location.href = d.url;
+      } catch (e) { payMsg[lotId] = e.message; drawWins(); }
+    }
+    async function loadContacts() { // el servidor entrega el WhatsApp solo si ya pagaste
+      for (const l of wins) {
+        if (!l.paid_at || contacts[l.id]) continue;
+        const { data } = await SB.rpc('get_contact', { p_lot: String(l.id), p_participant: String(me.id), p_secret: me.secret });
+        if (data) { contacts[l.id] = data; drawWins(); }
+      }
+    }
+    function wonCard(l) {
+      const head = `<b>🏆 ¡Ganaste "${esc(l.title)}" por ${money(l.current_price)}!</b>`;
+      if (l.paid_at) {
+        const wa = contacts[l.id];
+        if (!wa) return `<div class="card win">${head}<p>✅ Pago recibido. Cargando el contacto…</p></div>`;
+        const txt = encodeURIComponent('Hola, gané "' + l.title + '" en la subasta y ya pagué.');
+        return `<div class="card win">${head}<p>✅ Pago recibido. Coordiná la entrega con la organizadora:</p>
       <a class="btn-wa" href="https://wa.me/${esc(wa)}?text=${txt}" target="_blank" rel="noopener">Contactar por WhatsApp</a></div>`;
-  }
-  return `<div class="card win">${head}<p>Pagá con Mercado Pago para recibir el contacto de la organizadora.</p>
+      }
+      return `<div class="card win">${head}<p>Pagá con Mercado Pago para recibir el contacto de la organizadora.</p>
     <button class="win__pay" data-action="pay" data-lot="${esc(l.id)}">Pagar ${money(l.current_price)} con Mercado Pago</button>
-    <div class="mut win__msg">${esc(payMsg[l.id]||payNotice)}</div></div>`;
-}
-function drawWins(){$('wins').innerHTML=me?wins.map(wonCard).join(''):'';}
+    <div class="mut win__msg">${esc(payMsg[l.id] || payNotice)}</div></div>`;
+    }
+    function drawWins() { $('wins').innerHTML = me ? wins.map(wonCard).join('') : ''; }
 
-async function register(){
-  const n=$('nm').value.trim(),p=$('ph').value.replace(/\D/g,'');
-  if(!n||p.length<8)return alert('Poné nombre y celular válido');
-  const s=newSecret();
-  const {data,error}=await SB.rpc('register',{p_name:n,p_phone:p,p_secret:s});
-  if(error)return alert(error.message);
-  me={id:data,name:n,secret:s};localStorage.setItem('me',JSON.stringify(me));load();
-}
-async function bid(lotId,v){
-  const l=lives.find(x=>x.id===lotId);if(!l||!me)return;
-  v=v||minBid(l);
-  const {data,error}=await SB.rpc('place_bid',{p_lot:lotId,p_participant:me.id,p_secret:me.secret,p_amount:v});
-  msgs[lotId]=error?error.message:data==='ok'?'✅ Ofertaste '+money(v):data.startsWith('low')?'Tu oferta es baja, mínimo '+money(data.split(':')[1]):data==='closed'?'El lote ya cerró':'Registrate de nuevo';
-  const inp=$('amt-'+lotId);if(inp)inp.value='';
-  load();
-}
+    async function register() {
+      const n = $('nm').value.trim(), p = $('ph').value.replace(/\D/g, '');
+      if (!n || p.length < 8) return alert('Poné nombre y celular válido');
+      const s = newSecret();
+      const { data, error } = await SB.rpc('register', { p_name: n, p_phone: p, p_secret: s });
+      if (error) return alert(error.message);
+      me = { id: data, name: n, secret: s }; localStorage.setItem('me', JSON.stringify(me)); load();
+    }
+    async function bid(lotId, v) {
+      const l = lives.find(x => x.id === lotId); if (!l || !me) return;
+      v = v || minBid(l);
+      const { data, error } = await SB.rpc('place_bid', { p_lot: lotId, p_participant: me.id, p_secret: me.secret, p_amount: v });
+      msgs[lotId] = error ? error.message : data === 'ok' ? '✅ Ofertaste ' + money(v) : data.startsWith('low') ? 'Tu oferta es baja, mínimo ' + money(data.split(':')[1]) : data === 'closed' ? 'El lote ya cerró' : 'Registrate de nuevo';
+      const inp = $('amt-' + lotId); if (inp) inp.value = '';
+      load();
+    }
 
-let loading=false,again=false;
-async function load(){
-  if(loading){again=true;return;}loading=true;
-  try{
-    const [a,b,c,w]=await Promise.all([
-      SB.from('lots').select('*').eq('status','live').order('position').limit(MAX_LIVE),
-      SB.from('lots').select('*').eq('status','pending').order('position').limit(1),
-      SB.from('lots').select('*').eq('status','closed').order('closed_at',{ascending:false}).limit(1),
-      me?SB.from('lots').select('*').eq('status','closed').eq('winner_id',me.id).order('closed_at',{ascending:false}).limit(20):Promise.resolve({data:[]})]);
-    lives=a.data||[];next=b.data?.[0]||null;last=c.data?.[0]||null;wins=w.data||[];
-    const res=await Promise.all(lives.map(l=>SB.from('bids').select('name,amount').eq('lot_id',l.id).order('amount',{ascending:false}).limit(4)));
-    bidsBy={};lives.forEach((l,i)=>bidsBy[l.id]=res[i].data||[]);
-    draw();loadContacts();
-  }finally{loading=false;if(again){again=false;load();}}
-}
+    let loading = false, again = false;
+    async function load() {
+      if (loading) { again = true; return; } loading = true;
+      try {
+        const [a, b, c, w] = await Promise.all([
+          SB.from('lots').select('*').eq('status', 'live').order('position').limit(MAX_LIVE),
+          SB.from('lots').select('*').eq('status', 'pending').order('position').limit(1),
+          SB.from('lots').select('*').eq('status', 'closed').order('closed_at', { ascending: false }).limit(1),
+          me ? SB.from('lots').select('*').eq('status', 'closed').eq('winner_id', me.id).order('closed_at', { ascending: false }).limit(20) : Promise.resolve({ data: [] })]);
+        lives = a.data || []; next = b.data?.[0] || null; last = c.data?.[0] || null; wins = w.data || [];
+        const res = await Promise.all(lives.map(l => SB.from('bids').select('name,amount').eq('lot_id', l.id).order('amount', { ascending: false }).limit(4)));
+        bidsBy = {}; lives.forEach((l, i) => bidsBy[l.id] = res[i].data || []);
+        draw(); loadContacts();
+      } finally { loading = false; if (again) { again = false; load(); } }
+    }
 
-function auctionCard(l){
-  const bids=bidsBy[l.id]||[],ended=msLeft(l)<=0,mine=me&&l.leader_id===me.id;
-  return `<article id="card-${esc(l.id)}" class="card auction${ended?' auction--ended':''}${mine?' auction--leading':''}">
+    function auctionCard(l) {
+      const bids = bidsBy[l.id] || [], ended = msLeft(l) <= 0, mine = me && l.leader_id === me.id;
+      return `<article id="card-${esc(l.id)}" class="card auction${ended ? ' auction--ended' : ''}${mine ? ' auction--leading' : ''}">
     <span class="tag live">● EN VIVO</span>
-    ${l.image_url?`<img class="auction__img" src="${esc(l.image_url)}" alt="${esc(l.title)}" loading="lazy">`:''}
+    ${l.image_url ? `<img class="auction__img" src="${esc(l.image_url)}" alt="${esc(l.title)}" loading="lazy">` : ''}
     <h2 class="auction__title">${esc(l.title)}</h2>
-    ${l.description?`<div class="mut auction__desc">${esc(l.description)}</div>`:''}
-    ${l.ends_at?`<div class="mut auction__timer">⏱ Cierra en <b id="cd-${esc(l.id)}" class="auction__cd">--:--</b></div>`:''}
-    <div class="mut auction__label">${l.leader_id?'Oferta actual':'Precio base'}</div>
+    ${l.description ? `<div class="mut auction__desc">${esc(l.description)}</div>` : ''}
+    ${l.ends_at ? `<div class="mut auction__timer">⏱ Cierra en <b id="cd-${esc(l.id)}" class="auction__cd">--:--</b></div>` : ''}
+    <div class="mut auction__label">${l.leader_id ? 'Oferta actual' : 'Precio base'}</div>
     <div class="price auction__price">${money(l.current_price)}</div>
-    ${l.leader_name?`<div class="hot">🔥 ${esc(l.leader_name)}${mine?' (¡vos!)':''}</div>`:'<div class="mut">Todavía sin ofertas</div>'}
-    <div class="bids">${bids.map(x=>`<div><span>${esc(x.name)}</span><b>${money(x.amount)}</b></div>`).join('')}</div>
-    ${me?`<div class="auction__bid">
+    ${l.leader_name ? `<div class="hot">🔥 ${esc(l.leader_name)}${mine ? ' (¡vos!)' : ''}</div>` : '<div class="mut">Todavía sin ofertas</div>'}
+    <div class="bids">${bids.map(x => `<div><span>${esc(x.name)}</span><b>${money(x.amount)}</b></div>`).join('')}</div>
+    ${me ? `<div class="auction__bid">
       <button class="auction__quick" data-action="bid" data-lot="${esc(l.id)}">Pujar ${money(minBid(l))}</button>
       <div class="row"><input id="amt-${esc(l.id)}" type="number" inputmode="numeric" placeholder="Otro monto">
       <button class="s" data-action="bid-custom" data-lot="${esc(l.id)}">Pujar</button></div>
-      <div class="mut auction__msg">${esc(msgs[l.id]||'')}</div></div>`:''}
+      <div class="mut auction__msg">${esc(msgs[l.id] || '')}</div></div>` : ''}
   </article>`;
-}
+    }
 
-function draw(){
-  $('reg').classList.toggle('reg--hidden',!!me);
-  drawWins();
-  $('banner').innerHTML=!lives.length&&last&&!(me&&last.winner_id===me.id)
-    ?`<div class="card"><span class="mut">Último lote cerrado</span><br><b>${esc(last.title)}</b> — ganó <b>${esc(last.winner_name||'sin ofertas')}</b> ${last.winner_name?'por '+money(last.current_price):''}</div>`:'';
-  // conservar lo que el usuario está escribiendo mientras llega el tiempo real
-  const typed={};lives.forEach(l=>{const i=$('amt-'+l.id);if(i&&i.value)typed[l.id]=i.value;});
-  const focusId=document.activeElement?.id;
-  $('live').innerHTML=lives.length?lives.map(auctionCard).join('')
-    :`<div class="card auctions__empty"><b>Esperando que se lance el próximo lote…</b></div>`;
-  for(const id in typed){const i=$('amt-'+id);if(i)i.value=typed[id];}
-  if(focusId&&$(focusId))$(focusId).focus();
-  $('next').innerHTML=next?`<div class="card next"><span class="mut">Próximo lote</span><div class="next__body">
-    ${next.image_url?`<img class="next__img" src="${esc(next.image_url)}" alt="${esc(next.title)}">`:''}
-    <div><b>${esc(next.title)}</b><div class="mut">Base ${money(next.start_price)}</div></div></div></div>`:'';
-  tick();
-}
+    function draw() {
+      $('reg').classList.toggle('reg--hidden', !!me);
+      drawWins();
+      $('banner').innerHTML = !lives.length && last && !(me && last.winner_id === me.id)
+        ? `<div class="card"><span class="mut">Último lote cerrado</span><br><b>${esc(last.title)}</b> — ganó <b>${esc(last.winner_name || 'sin ofertas')}</b> ${last.winner_name ? 'por ' + money(last.current_price) : ''}</div>` : '';
+      // conservar lo que el usuario está escribiendo mientras llega el tiempo real
+      const typed = {}; lives.forEach(l => { const i = $('amt-' + l.id); if (i && i.value) typed[l.id] = i.value; });
+      const focusId = document.activeElement?.id;
+      $('live').innerHTML = lives.length ? lives.map(auctionCard).join('')
+        : `<div class="card auctions__empty"><b>Esperando que se lance el próximo lote…</b></div>`;
+      for (const id in typed) { const i = $('amt-' + id); if (i) i.value = typed[id]; }
+      if (focusId && $(focusId)) $(focusId).focus();
+      $('next').innerHTML = next ? `<div class="card next"><span class="mut">Próximo lote</span><div class="next__body">
+    ${next.image_url ? `<img class="next__img" src="${esc(next.image_url)}" alt="${esc(next.title)}">` : ''}
+    <div><b>${esc(next.title)}</b><div class="mut">Base ${money(next.start_price)}</div></div></div></div>` : '';
+      tick();
+    }
 
-document.addEventListener('click',e=>{
-  const b=e.target.closest('[data-action]');if(!b)return;
-  const id=b.dataset.lot;
-  if(b.dataset.action==='bid')bid(id);
-  if(b.dataset.action==='bid-custom')bid(id,+($('amt-'+id)?.value||0));
-  if(b.dataset.action==='pay')pay(id);
-});
-$('regBtn').addEventListener('click',register);
-SB.channel('pub').on('postgres_changes',{event:'*',schema:'public',table:'lots'},load)
- .on('postgres_changes',{event:'*',schema:'public',table:'bids'},load).subscribe();
-syncClock().then(load);setInterval(load,8000);setInterval(tick,1000);
-</script></body></html>
+    document.addEventListener('click', e => {
+      const b = e.target.closest('[data-action]'); if (!b) return;
+      const id = b.dataset.lot;
+      if (b.dataset.action === 'bid') bid(id);
+      if (b.dataset.action === 'bid-custom') bid(id, +($('amt-' + id)?.value || 0));
+      if (b.dataset.action === 'pay') pay(id);
+    });
+    $('regBtn').addEventListener('click', register);
+    SB.channel('pub').on('postgres_changes', { event: '*', schema: 'public', table: 'lots' }, load)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bids' }, load).subscribe();
+    syncClock().then(load); setInterval(load, 8000); setInterval(tick, 1000);
+  </script>
+</body>
+
+</html>

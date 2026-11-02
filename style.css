@@ -323,3 +323,173 @@ a:hover { color: #ffe4a1; }
 .card .auction__img { width: 100%; aspect-ratio: 4 / 3; height: auto; max-height: none; }
 .auctions__empty { padding-block: clamp(28px, 6vw, 48px); }
 
+/* ═══ Registro arriba a la derecha 300×300 (BEM) ═══ */
+:root { --reg-size: 300px; }
+.page { position: relative; }
+.reg { display: grid; gap: 6px; align-content: center; }
+.reg.reg--hidden { display: none; }
+@media (min-width: 1200px) {
+  .reg {
+    position: absolute;
+    top: 42px;
+    right: 0;
+    z-index: 2;
+    width: var(--reg-size);
+    aspect-ratio: 1;
+    margin: 0;
+    border-color: rgba(246, 189, 75, .4);
+  }
+}
+
+/* ═══ Franja KSM: web y copyright (BEM) ═══ */
+.ksm {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: clamp(12px, 2vw, 20px);
+  width: min(100%, 970px);
+  margin: 0 auto 24px;
+  padding: 10px 16px;
+  border-top: 1px solid var(--bd);
+  border-bottom: 1px solid var(--bd);
+  text-align: center;
+}
+.ksm__brand { display: block; line-height: 0; }
+.ksm__logo {
+  width: clamp(48px, 7vw, 64px);
+  height: auto;
+  aspect-ratio: 1;
+  object-fit: contain;
+  transition: transform .2s ease;
+}
+.ksm__brand:hover .ksm__logo { transform: scale(1.06); }
+.ksm__info { display: grid; gap: 2px; margin: 0; justify-items: start; }
+.ksm__link { font-weight: 800; text-decoration: none; }
+.ksm__link:hover { text-decoration: underline; }
+.ksm__copy { color: var(--mut); font-size: .8rem; }
+@media (max-width: 480px) { .ksm__info { justify-items: center; } }
+
+/* ═══ Marca / logo (BEM) ═══ */
+.brand {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  margin: 0 auto clamp(20px, 4vw, 32px);
+  text-align: center;
+}
+.brand__logo {
+  width: clamp(140px, 22vw, 220px);
+  height: auto;
+  aspect-ratio: 1;
+  filter: drop-shadow(0 10px 30px rgba(246, 189, 75, .35));
+  animation: brand-float 4s ease-in-out infinite;
+}
+.brand__dot { animation: brand-blink 1.6s ease-in-out infinite; }
+.brand__text { display: grid; gap: 4px; }
+.brand__title {
+  display: block;
+  margin: 0;
+  font-size: clamp(2rem, 6vw, 3.4rem);
+  font-weight: 900;
+  letter-spacing: -.05em;
+  line-height: 1.05;
+  background: linear-gradient(180deg, #ffffff, #c9d4ee);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.brand__accent {
+  background: linear-gradient(135deg, #ffe29a, var(--acc), #e0961f);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.brand__tagline {
+  margin: 0;
+  color: var(--mut);
+  font-size: clamp(.8rem, 1.6vw, .95rem);
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
+@keyframes brand-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+@keyframes brand-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .3; }
+}
+
+/* ═══ Banner publicitario 970×120 (BEM) ═══ */
+:root {
+  --wa: #36c995;
+  --wa-light: #65e8b5;
+  --wa-ink: #06251a;
+  --banner-w: 970px;
+  --banner-h: 120px;
+}
+.sell {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: clamp(12px, 2vw, 22px);
+  width: min(100%, var(--banner-w));
+  aspect-ratio: 970 / 120;
+  margin: 0 auto 20px;
+  padding: 12px clamp(16px, 2.5vw, 28px);
+  background:
+    radial-gradient(circle at 92% 50%, rgba(67, 214, 160, .18), transparent 40%),
+    radial-gradient(circle at 0% 0%, rgba(246, 189, 75, .25), transparent 50%),
+    linear-gradient(100deg, rgba(40, 34, 18, .97), rgba(16, 24, 42, .97));
+  border: 1px solid rgba(246, 189, 75, .45);
+  border-radius: 18px;
+  box-shadow: var(--shadow);
+  animation: sell-glow 3.5s ease-in-out infinite;
+}
+@keyframes sell-glow {
+  0%, 100% { box-shadow: var(--shadow), 0 0 0 0 rgba(246, 189, 75, 0); }
+  50% { box-shadow: var(--shadow), 0 0 22px 0 rgba(246, 189, 75, .2); }
+}
+.sell__icon {
+  width: clamp(56px, 9vw, 96px);
+  height: auto;
+  aspect-ratio: 1;
+  object-fit: contain;
+  filter: drop-shadow(0 6px 14px rgba(0, 0, 0, .35));
+}
+.sell__body { display: grid; gap: 4px; justify-items: start; min-width: 0; }
+.sell__badge {
+  padding: 2px 9px;
+  color: #171306;
+  background: var(--acc-strong);
+  border-radius: 999px;
+  font-size: .65rem;
+  font-weight: 850;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+.sell__title { margin: 0; font-size: clamp(1rem, 2.2vw, 1.45rem); color: var(--acc-strong); }
+.sell__note { margin: 0; color: var(--mut); font-size: clamp(.75rem, 1.3vw, .88rem); line-height: 1.35; }
+.sell__btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  padding: 12px 20px;
+  color: var(--wa-ink);
+  background: linear-gradient(135deg, var(--wa-light), var(--wa));
+  border: 1px solid rgba(101, 232, 181, .4);
+  border-radius: 12px;
+  font-weight: 850;
+  white-space: nowrap;
+  text-decoration: none;
+  transition: transform .16s ease, filter .16s ease;
+}
+.sell__btn:hover { color: var(--wa-ink); filter: brightness(1.08); transform: translateY(-2px); }
+@media (max-width: 760px) {
+  .sell { grid-template-columns: auto 1fr; aspect-ratio: auto; }
+  .sell__btn { grid-column: 1 / -1; }
+}
+
+
