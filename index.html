@@ -6,6 +6,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Subastas en vivo</title>
   <meta name="description" content="Subasta Todo: pujá en hasta 10 lotes al mismo tiempo.">
+  <link rel="stylesheet" href="variables.css">
   <link rel="stylesheet" href="style.css">
 </head>
 
@@ -51,6 +52,46 @@
     </footer>
     <section id="wins" class="wins"></section>
     <div id="banner"></div>
+
+    <!-- ══ FILTRO DE UBICACIÓN Y MODALIDAD ══════════════════════════ -->
+    <nav class="filter" aria-label="Filtro de productos y servicios">
+      <div class="filter__group">
+        <label for="filterProv" class="filter__label">📍 Tu provincia:</label>
+        <select id="filterProv" class="filter__select">
+          <option value="all">📍 Todas las provincias</option>
+          <option value="Buenos Aires">Buenos Aires</option>
+          <option value="CABA">CABA</option>
+          <option value="Catamarca">Catamarca</option>
+          <option value="Chaco">Chaco</option>
+          <option value="Chubut">Chubut</option>
+          <option value="Córdoba">Córdoba</option>
+          <option value="Corrientes">Corrientes</option>
+          <option value="Entre Ríos">Entre Ríos</option>
+          <option value="Formosa">Formosa</option>
+          <option value="Jujuy">Jujuy</option>
+          <option value="La Pampa">La Pampa</option>
+          <option value="La Rioja">La Rioja</option>
+          <option value="Mendoza">Mendoza</option>
+          <option value="Misiones">Misiones</option>
+          <option value="Neuquén">Neuquén</option>
+          <option value="Río Negro">Río Negro</option>
+          <option value="Salta">Salta</option>
+          <option value="San Juan">San Juan</option>
+          <option value="San Luis">San Luis</option>
+          <option value="Santa Cruz">Santa Cruz</option>
+          <option value="Santa Fe">Santa Fe</option>
+          <option value="Santiago del Estero">Santiago del Estero</option>
+          <option value="Tierra del Fuego">Tierra del Fuego</option>
+          <option value="Tucumán">Tucumán</option>
+        </select>
+      </div>
+      <div class="filter__pills">
+        <button class="filter__pill filter__pill--active" data-mod="all">Todos</button>
+        <button class="filter__pill" data-mod="digital">🌐 Solo Digitales</button>
+        <button class="filter__pill" data-mod="presencial">📍 Solo Presenciales</button>
+      </div>
+    </nav>
+
     <section id="live" class="auctions"></section>
     <div id="next"></div>
 
@@ -61,6 +102,8 @@
     const MAX_LIVE = 10;
     let me = JSON.parse(localStorage.getItem('me') || 'null'), lives = [], bidsBy = {}, next = null, last = null, wins = [];
     let offset = 0, lastClose = 0, payMsg = {}, contacts = {}, msgs = {};
+    let filterProv = localStorage.getItem('subasta_filter_prov') || 'all';
+    let filterMod = localStorage.getItem('subasta_filter_mod') || 'all';
     if (me && !me.secret) { localStorage.removeItem('me'); me = null; }
     const pagoParam = new URLSearchParams(location.search).get('pago');
     const payNotice = pagoParam === 'ok' || pagoParam === 'pendiente' ? 'Estamos confirmando tu pago… en unos segundos aparece el botón de WhatsApp.' : pagoParam === 'error' ? 'El pago no se completó. Podés intentar de nuevo.' : '';
@@ -128,6 +171,11 @@
     }
     async function bid(lotId, v) {
       const l = lives.find(x => x.id === lotId); if (!l || !me) return;
+      if (l.modality === 'presencial') {
+        const loc = (l.location_city ? l.location_city + ', ' : '') + (l.location_province || 'esta zona');
+        const ok = confirm(`⚠️ Atención: este producto/servicio es PRESENCIAL y se retira o realiza en: ${loc}.\n\n¿Confirmás que podés asistir o retirarlo en persona?`);
+        if (!ok) return;
+      }
       v = v || minBid(l);
       const { data, error } = await SB.rpc('place_bid', { p_lot: lotId, p_participant: me.id, p_secret: me.secret, p_amount: v });
       msgs[lotId] = error ? error.message : data === 'ok' ? '✅ Ofertaste ' + money(v) : data.startsWith('low') ? 'Tu oferta es baja, mínimo ' + money(data.split(':')[1]) : data === 'closed' ? 'El lote ya cerró' : 'Registrate de nuevo';
@@ -151,12 +199,33 @@
       } finally { loading = false; if (again) { again = false; load(); } }
     }
 
+    function modalityBadge(l) {
+      const mod = l.modality || 'digital';
+      if (mod === 'presencial') {
+        const loc = (l.location_city ? l.location_city + ', ' : '') + (l.location_province || 'Presencial');
+        return `<span class="tag tag--presencial">📍 ${esc(loc)}</span>`;
+      }
+      if (mod === 'envio') {
+        return `<span class="tag tag--shipping">📦 Con Envío</span>`;
+      }
+      return `<span class="tag tag--digital">🌐 Digital / A distancia</span>`;
+    }
+
     function auctionCard(l) {
       const bids = bidsBy[l.id] || [], ended = msLeft(l) <= 0, mine = me && l.leader_id === me.id;
       return `<article id="card-${esc(l.id)}" class="card auction${ended ? ' auction--ended' : ''}${mine ? ' auction--leading' : ''}">
-    <span class="tag live">● EN VIVO</span>
+    <span class="tag live">● EN VIVO</span> ${modalityBadge(l)}
     ${l.image_url ? `<img class="auction__img" src="${esc(l.image_url)}" alt="${esc(l.title)}" loading="lazy">` : ''}
     <h2 class="auction__title">${esc(l.title)}</h2>
+    ${l.modality === 'presencial' ? `
+      <div class="auction__location-note">
+        📍 <b>Retiro / Servicio presencial:</b> ${esc((l.location_city ? l.location_city + ', ' : '') + (l.location_province || 'Zona a coordinar'))}
+        ${l.shipping_notes ? `<br><small class="mut">${esc(l.shipping_notes)}</small>` : ''}
+      </div>` : ''}
+    ${l.modality === 'envio' && l.shipping_notes ? `
+      <div class="auction__location-note" style="color:var(--sys-teal);background:rgba(90,200,250,.08);border-color:rgba(90,200,250,.25)">
+        📦 <b>Envío:</b> ${esc(l.shipping_notes)}
+      </div>` : ''}
     ${l.description ? `<div class="mut auction__desc auction__desc--collapsed" id="desc-${esc(l.id)}">${esc(l.description)}</div><button class="auction__more" data-action="toggle-desc" data-lot="${esc(l.id)}" aria-expanded="false" aria-controls="desc-${esc(l.id)}">Ver más ▾</button>` : ''}
     ${l.ends_at ? `<div class="mut auction__timer">⏱ Cierra en <b id="cd-${esc(l.id)}" class="auction__cd">--:--</b></div>` : ''}
     <div class="mut auction__label">${l.leader_id ? 'Oferta actual' : 'Precio base'}</div>
@@ -176,14 +245,36 @@
       drawWins();
       $('banner').innerHTML = !lives.length && last && !(me && last.winner_id === me.id)
         ? `<div class="card"><span class="mut">Último lote cerrado</span><br><b>${esc(last.title)}</b> — ganó <b>${esc(last.winner_name || 'sin ofertas')}</b> ${last.winner_name ? 'por ' + money(last.current_price) : ''}</div>` : '';
+      
+      const filteredLives = lives.filter(l => {
+        const mod = l.modality || 'digital';
+        if (filterMod === 'digital' && mod !== 'digital') return false;
+        if (filterMod === 'presencial' && mod !== 'presencial') return false;
+        // Si es presencial y el usuario eligió una provincia específica, solo mostrar si coincide
+        if (mod === 'presencial' && filterProv !== 'all') {
+          if (l.location_province && l.location_province !== filterProv) return false;
+        }
+        return true;
+      });
+
       // conservar lo que el usuario está escribiendo mientras llega el tiempo real
       const typed = {}; lives.forEach(l => { const i = $('amt-' + l.id); if (i && i.value) typed[l.id] = i.value; });
       const focusId = document.activeElement?.id;
-      $('live').innerHTML = lives.length ? lives.map(auctionCard).join('')
-        : `<div class="card auctions__empty"><b>Esperando que se lance el próximo lote…</b></div>`;
+      
+      if (!lives.length) {
+        $('live').innerHTML = `<div class="card auctions__empty"><b>Esperando que se lance el próximo lote…</b></div>`;
+      } else if (!filteredLives.length) {
+        $('live').innerHTML = `<div class="card auctions__empty">
+          <b>No hay subastas para los filtros seleccionados.</b><br>
+          <span class="mut">Probá seleccionando "Todas las provincias" o la pestaña "Todos". Los productos digitales siempre están disponibles.</span>
+        </div>`;
+      } else {
+        $('live').innerHTML = filteredLives.map(auctionCard).join('');
+      }
+
       for (const id in typed) { const i = $('amt-' + id); if (i) i.value = typed[id]; }
       if (focusId && $(focusId)) $(focusId).focus();
-      $('next').innerHTML = next ? `<div class="card next"><span class="mut">Próximo lote</span><div class="next__body">
+      $('next').innerHTML = next ? `<div class="card next"><span class="mut">Próximo lote</span> ${modalityBadge(next)}<div class="next__body">
     ${next.image_url ? `<img class="next__img" src="${esc(next.image_url)}" alt="${esc(next.title)}">` : ''}
     <div><b>${esc(next.title)}</b><div class="mut">Base ${money(next.start_price)}</div></div></div></div>` : '';
       tick();
@@ -203,6 +294,26 @@
         b.textContent = expanded ? 'Ver más ▾' : 'Ver menos ▴';
       }
     });
+    // Control del filtro de provincia y modalidad
+    if ($('filterProv')) {
+      $('filterProv').value = filterProv;
+      $('filterProv').addEventListener('change', e => {
+        filterProv = e.target.value;
+        localStorage.setItem('subasta_filter_prov', filterProv);
+        draw();
+      });
+    }
+    document.querySelectorAll('.filter__pill').forEach(btn => {
+      btn.classList.toggle('filter__pill--active', btn.dataset.mod === filterMod);
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.filter__pill').forEach(b => b.classList.remove('filter__pill--active'));
+        btn.classList.add('filter__pill--active');
+        filterMod = btn.dataset.mod;
+        localStorage.setItem('subasta_filter_mod', filterMod);
+        draw();
+      });
+    });
+
     $('regBtn').addEventListener('click', register);
     SB.channel('pub').on('postgres_changes', { event: '*', schema: 'public', table: 'lots' }, load)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'bids' }, load).subscribe();

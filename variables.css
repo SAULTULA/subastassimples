@@ -1,0 +1,79 @@
+/* ═══════════════════════════════════════════════════════════════════
+   Design System — Tokens y Variables Centralizadas
+   Subasta Todo / KSM Servicios
+   ════════════════════════════════════════════════════════════════ */
+
+:root {
+  color-scheme: dark;
+
+  /* ── 1. Colores de Fondo (macOS Sonoma Dark) ─────────────────── */
+  --bg:          #161618;
+  --bg-elevated: #1c1c1e;
+  --bg-card:     rgba(44, 44, 46, .78);
+  --bg-input:    rgba(58, 58, 60, .6);
+  --bg-sidebar:  rgba(28, 28, 30, .92);
+
+  /* ── 2. Paleta del Sistema Apple ─────────────────────────────── */
+  --sys-blue:    #0a84ff;
+  --sys-orange:  #ff9f0a;
+  --sys-green:   #30d158;
+  --sys-red:     #ff453a;
+  --sys-yellow:  #ffd60a;
+  --sys-purple:  #bf5af2;
+  --sys-teal:    #5ac8fa;
+  --sys-indigo:  #5e5ce6;
+
+  /* ── 3. Jerarquía de Texto ───────────────────────────────────── */
+  --tx:          rgba(255, 255, 255, .92);
+  --tx-2:        rgba(235, 235, 245, .60); /* secondary */
+  --tx-3:        rgba(235, 235, 245, .30); /* tertiary */
+
+  /* ── 4. Bordes y Separadores ─────────────────────────────────── */
+  --bd:          rgba(255, 255, 255, .10);
+  --bd-2:        rgba(255, 255, 255, .06);
+  --bd-accent:   rgba(10, 132, 255, .35);
+
+  /* ── 5. Acentos de Marca y Estados ──────────────────────────── */
+  --acc:         var(--sys-orange);
+  --acc-strong:  #ffb340;
+  --ok:          var(--sys-green);
+  --bad:         var(--sys-red);
+  --warning:     var(--sys-yellow);
+
+  /* ── 6. Canales e Integraciones (WhatsApp, MP) ───────────────── */
+  --wa:          #30d158;
+  --wa-light:    #34c759;
+  --wa-ink:      #001a0a;
+
+  /* ── 7. Sombras y Efectos Visuales ──────────────────────────── */
+  --shadow-sm:   0 2px 8px rgba(0, 0, 0, .38);
+  --shadow:      0 8px 32px rgba(0, 0, 0, .48);
+  --shadow-lg:   0 20px 60px rgba(0, 0, 0, .60);
+  --blur:        saturate(180%) blur(20px);
+
+  /* ── 8. Dimensiones y Radios ─────────────────────────────────── */
+  --radius-sm:   8px;
+  --radius:      14px;
+  --radius-lg:   20px;
+  --radius-pill: 999px;
+
+  --reg-size:    300px;
+  --banner-w:    970px;
+  --side-w:      260px;
+
+  /* ── 9. Espaciados Modernos ──────────────────────────────────── */
+  --sp-xs:       4px;
+  --sp-sm:       8px;
+  --sp-md:       14px;
+  --sp-lg:       20px;
+  --sp-xl:       28px;
+
+  /* ── 10. Tipografía y Escala ─────────────────────────────────── */
+  --font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+  --font-size-xs: clamp(0.68rem, 1vw, 0.75rem);
+  --font-size-sm: clamp(0.8rem, 1.2vw, 0.88rem);
+  --font-size-base: 15px;
+  --font-size-lg: clamp(1.05rem, 2vw, 1.25rem);
+  --font-size-title: clamp(1.5rem, 4vw, 2.2rem);
+}
+

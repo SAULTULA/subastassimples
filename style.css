@@ -1,3 +1,5 @@
+@import "variables.css";
+
 /* ═══════════════════════════════════════════════════════════════════
    Subasta Todo — macOS Sonoma Dark Theme
    Fuente: -apple-system / SF Pro Display
@@ -347,6 +349,21 @@ button.g:hover:not(:disabled) {
   background: rgba(255, 69, 58, .2);
   border-color: rgba(255, 69, 58, .45);
   animation: live-pulse 2s ease-in-out infinite;
+}
+.tag--digital {
+  color: var(--sys-teal);
+  background: rgba(90, 200, 250, .14);
+  border-color: rgba(90, 200, 250, .32);
+}
+.tag--presencial {
+  color: var(--sys-orange);
+  background: rgba(255, 159, 10, .14);
+  border-color: rgba(255, 159, 10, .38);
+}
+.tag--shipping {
+  color: var(--sys-green);
+  background: rgba(48, 209, 88, .14);
+  border-color: rgba(48, 209, 88, .32);
 }
 @keyframes live-pulse {
   0%, 100% { box-shadow: none; }
@@ -737,4 +754,126 @@ a:hover { color: var(--sys-teal); }
   background: rgba(10, 132, 255, .18);
   color: var(--sys-blue);
   border-color: rgba(10, 132, 255, .35);
+}
+
+/* ── 27. Filtro de ubicación y modalidad (BEM) ─────────────────── */
+.filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: min(100%, var(--banner-w));
+  margin: 0 auto 18px;
+  padding: 12px clamp(14px, 2.5vw, 20px);
+  background: rgba(44, 44, 50, .85);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  border: 1px solid var(--bd);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+.filter__group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 250px;
+}
+.filter__label {
+  font-size: .88rem;
+  font-weight: 600;
+  color: var(--tx-2);
+  white-space: nowrap;
+}
+.filter__select {
+  flex: 1;
+  min-width: 170px;
+  min-height: 40px;
+  padding: 8px 12px;
+  color: var(--tx);
+  background: var(--bg-input);
+  border: 1px solid var(--bd);
+  border-radius: var(--radius-sm);
+  font-size: .88rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color .15s, box-shadow .15s;
+}
+.filter__select:focus {
+  outline: none;
+  border-color: var(--sys-blue);
+  box-shadow: 0 0 0 3px rgba(10, 132, 255, .25);
+}
+.filter__select option {
+  background: #1c1c1e;
+  color: #fff;
+}
+.filter__pills {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.filter__pill {
+  all: unset;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 5px 14px;
+  color: var(--tx-2);
+  background: rgba(255, 255, 255, .06);
+  border: 1px solid var(--bd);
+  border-radius: var(--radius-pill);
+  font-size: .82rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-sizing: border-box;
+  transition: background .15s, color .15s, border-color .15s, transform .1s;
+}
+.filter__pill:hover {
+  background: rgba(255, 255, 255, .12);
+  color: var(--tx);
+}
+.filter__pill--active {
+  background: rgba(10, 132, 255, .22);
+  color: #fff;
+  border-color: rgba(10, 132, 255, .55);
+}
+.filter__pill:active {
+  transform: scale(0.97);
+}
+
+/* Nota de ubicación dentro de la tarjeta de subasta */
+.auction__location-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0 10px;
+  padding: 7px 11px;
+  font-size: .82rem;
+  color: #ffd60a;
+  background: rgba(255, 214, 10, .10);
+  border: 1px solid rgba(255, 214, 10, .28);
+  border-radius: var(--radius-sm);
+  line-height: 1.4;
+}
+
+/* Caja de ubicación en formulario del admin */
+.adm-loc-box {
+  display: grid;
+  gap: 8px;
+  margin: 10px 0;
+  padding: 12px;
+  background: rgba(255, 255, 255, .03);
+  border: 1px dashed var(--bd);
+  border-radius: var(--radius-sm);
+}
+.adm-loc-box__title {
+  margin: 0 0 2px;
+  font-size: .78rem;
+  font-weight: 700;
+  color: var(--sys-orange);
+  text-transform: uppercase;
+  letter-spacing: .06em;
 }

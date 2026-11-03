@@ -1,5 +1,6 @@
 <!doctype html><html lang="es"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>Admin subasta</title>
+<link rel="stylesheet" href="variables.css">
 <link rel="stylesheet" href="style.css"></head><body><main>
 <h1>⚙️ Panel de subasta</h1>
 <div id="login" class="card"><input id="em" type="email" placeholder="Email admin"><input id="pw" type="password" placeholder="Contraseña">
@@ -19,6 +20,47 @@
 <input id="t" placeholder="Título"><textarea id="d" rows="2" placeholder="Descripción"></textarea>
 <div class="row"><input id="sp" type="number" placeholder="Precio base / referencia"><input id="inc" type="number" placeholder="Incremento mínimo" value="500"></div>
 <input id="dur" type="number" inputmode="numeric" placeholder="Duración en minutos (vacío = cierre manual)">
+
+<label style="display:block;margin:8px 0 3px;font-size:.85rem;color:var(--tx-2);font-weight:600">Modalidad de entrega / servicio:</label>
+<select id="m" onchange="toggleLocBox()">
+  <option value="digital">🌐 Digital / A distancia (Sin límite geográfico)</option>
+  <option value="presencial">📍 Presencial / Retiro en mano (Requiere ubicación)</option>
+  <option value="envio">📦 Con envío físico (Despacho a todo el país)</option>
+</select>
+
+<div id="locBox" class="adm-loc-box" style="display:none">
+  <div class="adm-loc-box__title">📍 Ubicación del producto o servicio</div>
+  <select id="prov">
+    <option value="">Seleccionar provincia *</option>
+    <option value="Buenos Aires">Buenos Aires</option>
+    <option value="CABA">CABA</option>
+    <option value="Catamarca">Catamarca</option>
+    <option value="Chaco">Chaco</option>
+    <option value="Chubut">Chubut</option>
+    <option value="Córdoba">Córdoba</option>
+    <option value="Corrientes">Corrientes</option>
+    <option value="Entre Ríos">Entre Ríos</option>
+    <option value="Formosa">Formosa</option>
+    <option value="Jujuy">Jujuy</option>
+    <option value="La Pampa">La Pampa</option>
+    <option value="La Rioja">La Rioja</option>
+    <option value="Mendoza">Mendoza</option>
+    <option value="Misiones">Misiones</option>
+    <option value="Neuquén">Neuquén</option>
+    <option value="Río Negro">Río Negro</option>
+    <option value="Salta">Salta</option>
+    <option value="San Juan">San Juan</option>
+    <option value="San Luis">San Luis</option>
+    <option value="Santa Cruz">Santa Cruz</option>
+    <option value="Santa Fe">Santa Fe</option>
+    <option value="Santiago del Estero">Santiago del Estero</option>
+    <option value="Tierra del Fuego">Tierra del Fuego</option>
+    <option value="Tucumán">Tucumán</option>
+  </select>
+  <input id="city" placeholder="Localidad / Barrio / Zona (ej: Quilmes, Palermo, Centro)">
+  <input id="ship" placeholder="Aclaración de retiro o envío (ej: Se retira por local comercial)">
+</div>
+
 <input id="img" type="file" accept="image/*"><div class="row" style="margin-top:6px"><button onclick="saveLot()" id="addb">Agregar lote</button><button id="cnc" class="s" style="display:none" onclick="resetForm()">Cancelar</button></div></div>
 <div id="list"></div>
 </div>
@@ -97,31 +139,53 @@ async function load(){
   draw();
 }
 function wa(l){const p=phones[l.winner_id]||'';return `<a target="_blank" href="https://wa.me/54${p.startsWith('9')?p:'9'+p}">${esc(p)}</a>`}
+function modalityTag(l){
+  if(l.modality==='presencial') return `<span class="tag tag--presencial">📍 ${esc(l.location_city?l.location_city+', ':'')}${esc(l.location_province||'Presencial')}</span>`;
+  if(l.modality==='envio') return `<span class="tag tag--shipping">📦 Envío nacional</span>`;
+  return `<span class="tag tag--digital">🌐 Digital</span>`;
+}
 function draw(){
   const lives=lots.filter(l=>l.status==='live'),full=lives.length>=MAX_LIVE;
   const closed=lots.filter(l=>l.status==='closed').sort((a,b)=>b.closed_at>a.closed_at?1:-1)[0];
   $('last').innerHTML=closed&&closed.winner_name?`<div class="card win"><b>🏆 Último ganador: ${esc(closed.winner_name)}</b><br>${esc(closed.title)} — ${money(closed.current_price)}<br>Celular: ${wa(closed)}<br>${closed.paid_at?'✅ Pagado por Mercado Pago':'⏳ Pendiente de pago'}</div>`:'';
-  $('liveBox').innerHTML=(lives.length?`<div class="mut">En vivo: <b>${lives.length}/${MAX_LIVE}</b>${full?' — límite alcanzado':''}</div>`:'')+lives.map(live=>`<div class="card"><span class="tag live">● EN VIVO</span> <b>${esc(live.title)}</b>
+  $('liveBox').innerHTML=(lives.length?`<div class="mut">En vivo: <b>${lives.length}/${MAX_LIVE}</b>${full?' — límite alcanzado':''}</div>`:'')+lives.map(live=>`<div class="card"><span class="tag live">● EN VIVO</span> ${modalityTag(live)} <b>${esc(live.title)}</b>
     <div class="price">${money(live.current_price)}</div>${live.ends_at?`<div class="mut">⏱ Cierra a las ${new Date(live.ends_at).toLocaleTimeString('es-AR')}</div>`:''}<div class="hot">${live.leader_name?'🔥 '+esc(live.leader_name):'Sin ofertas'}</div>
     <div class="bids">${(bidsBy[live.id]||[]).map(x=>`<div><span>${esc(x.name)}</span><b>${money(x.amount)}</b></div>`).join('')}</div>
     <button class="d" style="width:100%;margin-top:10px" onclick="rpc('close_lot','${live.id}')">⏹ Cerrar lote y definir ganador</button></div>`).join('');
   $('list').innerHTML=lots.map(l=>`<div class="card"><div class="row" style="flex-wrap:nowrap">
     ${l.image_url?`<img src="${esc(l.image_url)}" style="width:70px;height:70px;object-fit:cover;border-radius:8px;flex:none;margin:0">`:''}
-    <div><b>${l.position}. ${esc(l.title)}</b> <span class="tag">${l.status==='pending'?'pendiente':l.status==='live'?'en vivo':'cerrado'}</span>
-    <div class="mut">Base ${money(l.start_price)} · +${money(l.increment)}${l.status==='closed'?' · Ganó: '+esc(l.winner_name||'nadie')+' '+(l.winner_id?wa(l):'')+(l.winner_id?(l.paid_at?' · ✅ Pagado':' · ⏳ Sin pagar'):''):''}</div></div></div>
+    <div><b>${l.position}. ${esc(l.title)}</b> <span class="tag">${l.status==='pending'?'pendiente':l.status==='live'?'en vivo':'cerrado'}</span> ${modalityTag(l)}
+    <div class="mut">Base ${money(l.start_price)} · +${money(l.increment)}${l.status==='closed'?' · Ganó: '+esc(l.winner_name||'nadie')+' '+(l.winner_id?wa(l):'')+(l.winner_id?(l.paid_at?' · ✅ Pagado':' · ⏳ Sin pagar'):''):''}</div>
+    ${l.shipping_notes?`<div class="mut" style="font-size:.8rem">ℹ️ ${esc(l.shipping_notes)}</div>`:''}</div></div>
     <div class="row" style="margin-top:8px">${l.status==='pending'?`<button class="g" ${full?'disabled':''} onclick="rpc('launch_lot','${l.id}')">▶ Lanzar</button>`:''}${l.status==='closed'?`<button class="g" ${full?'disabled':''} onclick="rpc('relaunch_lot','${l.id}')">🔁 Relanzar</button>`:''}<button class="s" onclick="editLot('${l.id}')">✏️ Editar</button>${l.status!=='live'?`<button class="s" onclick="del('${l.id}')">Borrar</button>`:''}</div></div>`).join('');
 }
 async function rpc(fn,id){const {error}=await SB.rpc(fn,{p_lot:id});if(error)alert(error.message);load();}
 async function del(id){if(confirm('¿Borrar lote?')){await SB.from('lots').delete().eq('id',id);load();}}
 let editId=null;
-function resetForm(){editId=null;['t','d','sp','dur','img'].forEach(i=>$(i).value='');$('inc').value=500;
-  $('ftitle').textContent='Nuevo lote';$('addb').textContent='Agregar lote';$('cnc').style.display='none';}
-function editLot(id){const l=lots.find(x=>x.id===id);if(!l)return;editId=id;
+function toggleLocBox(){
+  const m=$('m').value;
+  $('locBox').style.display=m==='presencial'||m==='envio'?'grid':'none';
+}
+function resetForm(){
+  editId=null;['t','d','sp','dur','img','city','ship'].forEach(i=>$(i).value='');
+  $('prov').value='';$('m').value='digital';$('inc').value=500;toggleLocBox();
+  $('ftitle').textContent='Nuevo lote';$('addb').textContent='Agregar lote';$('cnc').style.display='none';
+}
+function editLot(id){
+  const l=lots.find(x=>x.id===id);if(!l)return;editId=id;
   $('t').value=l.title;$('d').value=l.description||'';$('sp').value=l.start_price;$('inc').value=l.increment;$('dur').value=l.duration_minutes||'';$('img').value='';
+  $('m').value=l.modality||'digital';$('prov').value=l.location_province||'';$('city').value=l.location_city||'';$('ship').value=l.shipping_notes||'';
+  toggleLocBox();
   $('ftitle').textContent='Editando: '+l.title+(l.status==='live'?' (en vivo: el precio base no cambia)':'');
-  $('addb').textContent='Guardar cambios';$('cnc').style.display='block';$('t').scrollIntoView({behavior:'smooth',block:'center'});}
+  $('addb').textContent='Guardar cambios';$('cnc').style.display='block';$('t').scrollIntoView({behavior:'smooth',block:'center'});
+}
 async function saveLot(){
   const t=$('t').value.trim();if(!t)return alert('Falta título');
+  const mod=$('m').value;
+  const prov=mod!=='digital'?$('prov').value.trim():null;
+  const city=mod!=='digital'?$('city').value.trim():null;
+  const ship=$('ship').value.trim()||null;
+  if(mod==='presencial'&&!prov)return alert('Por favor seleccioná la provincia para el producto o servicio presencial');
   $('addb').disabled=true;let url=null;const f=$('img').files[0];
   if(f){const path=Date.now()+'-'+f.name.replace(/[^\w.]/g,'_');
     const up=await SB.storage.from('lots').upload(path,f);
@@ -130,14 +194,14 @@ async function saveLot(){
   const sp=+$('sp').value||0,inc=+$('inc').value||100,dur=+$('dur').value||null;let error;
   if(editId){
     const l=lots.find(x=>x.id===editId);
-    const u={title:t,description:$('d').value,increment:inc,duration_minutes:dur};
+    const u={title:t,description:$('d').value,increment:inc,duration_minutes:dur,modality:mod,location_province:prov,location_city:city,shipping_notes:ship};
     if(url)u.image_url=url;
     if(l.status==='pending'){u.start_price=sp;u.current_price=sp;}
     if(l.status==='closed')u.start_price=sp;
     ({error}=await SB.from('lots').update(u).eq('id',editId));
   }else{
     const pos=Math.max(0,...lots.map(l=>l.position))+1;
-    ({error}=await SB.from('lots').insert({title:t,description:$('d').value,image_url:url,start_price:sp,current_price:sp,increment:inc,duration_minutes:dur,position:pos}));
+    ({error}=await SB.from('lots').insert({title:t,description:$('d').value,image_url:url,start_price:sp,current_price:sp,increment:inc,duration_minutes:dur,position:pos,modality:mod,location_province:prov,location_city:city,shipping_notes:ship}));
   }
   $('addb').disabled=false;if(error)return alert(error.message);
   resetForm();load();
