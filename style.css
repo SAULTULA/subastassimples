@@ -877,3 +877,21 @@ a:hover { color: var(--sys-teal); }
   text-transform: uppercase;
   letter-spacing: .06em;
 }
+
+/* ── 28. Contador de visitas (BEM) ─────────────────────────────── */
+.counter {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 32px auto 20px;
+  width: min(100%, var(--banner-w));
+}
+.counter__widget {
+  width: 280px;
+  height: 350px;
+  border: none;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  background: var(--bg-card);
+}
